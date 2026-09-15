@@ -1,5 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { StorageService } from '../../services/storageService';
+import { SupabaseService } from '../../services/supabaseService';
+import { isSupabaseConfigured } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { Product, Accommodation, Report, Order, Dispute, VerificationRequest, AuditLog } from '../../types';
@@ -74,16 +76,75 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [currentTab, setCurrentTab] = useState<AdminTab>('overview');
   const [, setTick] = useState(0);
 
-  const forceRefresh = () => setTick((t) => t + 1);
+  const [dbStats, setDbStats] = useState<any>(null);
+  const [dbReports, setDbReports] = useState<Report[]>([]);
+  const [dbAuditLogs, setDbAuditLogs] = useState<AuditLog[]>([]);
+  const [dbProducts, setDbProducts] = useState<Product[]>([]);
+  const [isSyncing, setIsSyncing] = useState(false);
 
-  const stats = StorageService.getPlatformStats();
-  const products = StorageService.getProducts();
+  const fetchSupabaseData = useCallback(async () => {
+    if (!isSupabaseConfigured()) return;
+    setIsSyncing(true);
+    try {
+      const [fetchedStats, fetchedReports, fetchedLogs, fetchedListings] = await Promise.all([
+        SupabaseService.fetchPlatformStats(),
+        SupabaseService.fetchReports(),
+        SupabaseService.fetchAuditLogs(50),
+        SupabaseService.fetchListings(),
+      ]);
+
+      if (fetchedStats) setDbStats(fetchedStats);
+      if (fetchedReports) setDbReports(fetchedReports);
+      if (fetchedLogs) setDbAuditLogs(fetchedLogs);
+      if (fetchedListings && fetchedListings.length > 0) setDbProducts(fetchedListings);
+    } catch {
+      // Keep local state
+    } finally {
+      setIsSyncing(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchSupabaseData();
+
+    const unsubProfiles = SupabaseService.subscribeToProfiles(() => {
+      fetchSupabaseData();
+    });
+    const unsubListings = SupabaseService.subscribeToListings(() => {
+      fetchSupabaseData();
+    });
+
+    return () => {
+      unsubProfiles();
+      unsubListings();
+    };
+  }, [fetchSupabaseData]);
+
+  const forceRefresh = () => {
+    setTick((t) => t + 1);
+    fetchSupabaseData();
+  };
+
+  const localStats = StorageService.getPlatformStats();
+  const stats = dbStats
+    ? {
+        ...localStats,
+        totalUsers: dbStats.totalUsers || localStats.totalUsers,
+        totalProducts: dbStats.totalProducts || localStats.totalProducts,
+        totalReports: dbStats.totalReports ?? localStats.totalReports,
+        totalOrders: dbStats.totalOrders ?? localStats.totalOrders,
+        totalEscrowVolume: dbStats.totalVolume ?? localStats.totalEscrowVolume,
+        activeEscrowHold: dbStats.escrowHeldTotal ?? localStats.activeEscrowHold,
+      }
+    : localStats;
+
+  const products = dbProducts.length > 0 ? dbProducts : StorageService.getProducts();
   const accommodations = StorageService.getAccommodations();
-  const reports = StorageService.getReports();
+  const reports = dbReports.length > 0 ? dbReports : StorageService.getReports();
   const orders = StorageService.getOrders();
   const disputes = StorageService.getDisputes();
   const verifications = StorageService.getVerificationRequests();
-  const auditLogs = StorageService.getAuditLogs(50);
+  const auditLogs = dbAuditLogs.length > 0 ? dbAuditLogs : StorageService.getAuditLogs(50);
   const platformSettings = StorageService.getPlatformSettings();
   const studyResources = StorageService.getStudyResources();
 
@@ -153,7 +214,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   };
 
   // Handle report status change
-  const handleResolveReport = (reportId: string, status: 'resolved' | 'dismissed') => {
+  const handleResolveReport = async (reportId: string, status: 'resolved' | 'dismissed') => {
+    if (isSupabaseConfigured()) {
+      await SupabaseService.updateReportStatus(reportId, status, undefined, currentUser?.fullName || 'Admin');
+    }
     const updated = StorageService.updateReportStatus(reportId, status);
     if (updated) {
       success(`Report marked as ${status}.`);
@@ -170,8 +234,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     }
   };
 
-  const handleDeleteProduct = (productId: string) => {
+  const handleDeleteProduct = async (productId: string) => {
     if (window.confirm('Admin Action: Permanently delete this listing from CampusPlug?')) {
+      if (isSupabaseConfigured()) {
+        await SupabaseService.deleteListing(productId);
+      }
       const deleted = StorageService.deleteProduct(productId);
       if (deleted) {
         success('Listing deleted by Admin.');

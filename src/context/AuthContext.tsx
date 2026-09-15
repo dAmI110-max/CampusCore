@@ -83,6 +83,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           if (sessionData?.session?.user && mounted) {
             const profile = await SupabaseService.fetchProfile(sessionData.session.user.id);
             if (profile) {
+              if (profile.accountStatus === 'banned' || profile.accountStatus === 'suspended') {
+                await client.auth.signOut();
+                setCurrentUser(null);
+                StorageService.setCurrentUser(null);
+                setIsLoading(false);
+                return;
+              }
               setCurrentUser(profile);
               StorageService.updateUser(profile.id, profile);
               StorageService.setCurrentUser(profile.id);
@@ -114,6 +121,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (event === 'SIGNED_IN' && session?.user) {
           const profile = await SupabaseService.fetchProfile(session.user.id);
           if (profile) {
+            if (profile.accountStatus === 'banned' || profile.accountStatus === 'suspended') {
+              await client.auth.signOut();
+              setCurrentUser(null);
+              StorageService.setCurrentUser(null);
+              return;
+            }
             setCurrentUser(profile);
             StorageService.updateUser(profile.id, profile);
             StorageService.setCurrentUser(profile.id);
@@ -124,6 +137,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         } else if (event === 'USER_UPDATED' && session?.user) {
           const profile = await SupabaseService.fetchProfile(session.user.id);
           if (profile) {
+            if (profile.accountStatus === 'banned' || profile.accountStatus === 'suspended') {
+              await client.auth.signOut();
+              setCurrentUser(null);
+              StorageService.setCurrentUser(null);
+              return;
+            }
             setCurrentUser(profile);
           }
         }
@@ -372,9 +391,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setIsLoading(false);
         return { success: false, message: supaRes.message };
       }
+
+      if (supaRes.user) {
+        StorageService.updateUser(supaRes.user.id, supaRes.user);
+        StorageService.setCurrentUser(supaRes.user.id);
+        StorageService.addSavedAccount(supaRes.user);
+        setCurrentUser(supaRes.user);
+        setDemoUsers(StorageService.getUsers());
+        setSavedAccounts(StorageService.getSavedAccounts());
+        setIsLoading(false);
+        return { success: true };
+      }
+
+      if (supaRes.message && (supaRes.message.toLowerCase().includes('confirm') || supaRes.message.toLowerCase().includes('email') || supaRes.message.toLowerCase().includes('verification'))) {
+        setIsLoading(false);
+        return { success: true, message: supaRes.message };
+      }
     }
 
-    // 2. Also register in local storage cache
+    // 2. Also register in local storage cache for offline development
     const universities = StorageService.getUniversities();
     const campuses = StorageService.getCampuses();
     const faculties = StorageService.getFaculties();

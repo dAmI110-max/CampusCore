@@ -86,7 +86,7 @@ Core Guidelines:
 
       if (client) {
         // Supported models for text tasks
-        const candidateModels = ["gemini-3.7-flash", "gemini-flash-latest"];
+        const candidateModels = ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-3.7-flash", "gemini-flash-latest"];
         for (const candidate of candidateModels) {
           try {
             const response = await client.models.generateContent({

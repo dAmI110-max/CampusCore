@@ -225,15 +225,15 @@ export const HomePage: React.FC<HomePageProps> = ({
               <div className="w-12 h-12 rounded-2xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 mx-auto flex items-center justify-center mb-3">
                 <ShoppingBag className="w-6 h-6" />
               </div>
-              <h3 className="text-base font-bold text-slate-900 dark:text-white">No listings yet</h3>
+              <h3 className="text-base font-bold text-slate-900 dark:text-white">No products available yet</h3>
               <p className="text-sm text-slate-500 dark:text-slate-400 mt-1 max-w-md mx-auto">
-                Be the first student to sell on CampusPlug.
+                New products will appear here as students start selling on CampusPlug.
               </p>
               <button
                 onClick={onOpenCreateProduct}
                 className="mt-4 inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm transition-colors shadow-sm cursor-pointer"
               >
-                <Sparkles className="w-4 h-4" /> Start Selling
+                <Sparkles className="w-4 h-4" /> Be the first seller to list yours.
               </button>
             </div>
           )}
@@ -241,34 +241,36 @@ export const HomePage: React.FC<HomePageProps> = ({
       </section>
 
       {/* 6. Accommodation & Hostels Preview */}
-      <section className="py-12 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <div className="flex items-center gap-1.5 text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider mb-1">
-              <Home className="w-3.5 h-3.5" /> Off-Campus Accommodation
+      {featuredAccommodations.length > 0 && (
+        <section className="py-12 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <div className="flex items-center gap-1.5 text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider mb-1">
+                <Home className="w-3.5 h-3.5" /> Off-Campus Accommodation
+              </div>
+              <h2 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white">
+                Hostels & Student Lodges near Campus
+              </h2>
             </div>
-            <h2 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white">
-              Hostels & Student Lodges near Campus
-            </h2>
+            <button
+              onClick={onExploreAccommodation}
+              className="text-xs sm:text-sm font-bold text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 flex items-center gap-1 group cursor-pointer"
+            >
+              View All Lodges <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
+            </button>
           </div>
-          <button
-            onClick={onExploreAccommodation}
-            className="text-xs sm:text-sm font-bold text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 flex items-center gap-1 group cursor-pointer"
-          >
-            View All Lodges <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
-          </button>
-        </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-          {featuredAccommodations.slice(0, 3).map((acc) => (
-            <AccommodationCard
-              key={acc.id}
-              accommodation={acc}
-              onClick={onAccommodationClick}
-            />
-          ))}
-        </div>
-      </section>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+            {featuredAccommodations.slice(0, 3).map((acc) => (
+              <AccommodationCard
+                key={acc.id}
+                accommodation={acc}
+                onClick={onAccommodationClick}
+              />
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* 7. How CampusPlug Works */}
       <HowItWorks

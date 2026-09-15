@@ -105,12 +105,12 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
       case 'products':
       default:
         return {
-          icon: <PackageOpen className="w-10 h-10 text-amber-500 stroke-[1.8]" />,
-          iconBg: 'bg-amber-50 border-amber-100',
-          btnBg: 'bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold shadow-amber-500/20',
-          title: title || 'Nothing listed here yet',
-          description: description || 'Be the first student to sell something in this category or campus location.',
-          actionText: effectiveActionText || 'Start Selling on CampusPlug',
+          icon: <PackageOpen className="w-10 h-10 text-indigo-600 stroke-[1.8]" />,
+          iconBg: 'bg-indigo-50 border-indigo-100',
+          btnBg: 'bg-indigo-600 hover:bg-indigo-700 text-white font-bold shadow-indigo-600/20',
+          title: title || 'No products available yet',
+          description: description || 'New products will appear here as students start selling on CampusPlug.',
+          actionText: effectiveActionText || 'Be the first seller to list yours.',
         };
     }
   };

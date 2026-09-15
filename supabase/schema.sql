@@ -125,7 +125,39 @@ CREATE TABLE IF NOT EXISTS public.orders (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 6. ADMIN MANAGEMENT TABLE
+-- 6. REPORTS TABLE
+CREATE TABLE IF NOT EXISTS public.reports (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  reporter_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+  reporter_name TEXT,
+  reported_user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE,
+  reported_user_name TEXT,
+  listing_id UUID REFERENCES public.listings(id) ON DELETE SET NULL,
+  listing_title TEXT,
+  reason TEXT NOT NULL,
+  description TEXT,
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'reviewing', 'resolved', 'dismissed')),
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  resolved_at TIMESTAMPTZ,
+  resolved_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+  resolution_notes TEXT
+);
+
+-- 7. AUDIT LOGS TABLE
+CREATE TABLE IF NOT EXISTS public.audit_logs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  admin_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+  admin_name TEXT NOT NULL,
+  admin_email TEXT,
+  action TEXT NOT NULL,
+  target_id TEXT,
+  target_type TEXT NOT NULL DEFAULT 'user' CHECK (target_type IN ('user', 'listing', 'report', 'order', 'finance', 'system')),
+  reason TEXT,
+  details JSONB DEFAULT '{}'::jsonb,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 8. ADMIN MANAGEMENT TABLE
 CREATE TABLE IF NOT EXISTS public.admin_users (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE UNIQUE NOT NULL,
@@ -148,6 +180,8 @@ ALTER TABLE public.sellers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.listings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.listing_images ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.orders ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.reports ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.audit_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.admin_users ENABLE ROW LEVEL SECURITY;
 
 -- Profiles Policies
@@ -158,7 +192,10 @@ CREATE POLICY "Users can insert their own profile"
   ON public.profiles FOR INSERT WITH CHECK (auth.uid() = id);
 
 CREATE POLICY "Users can update their own profile" 
-  ON public.profiles FOR UPDATE USING (auth.uid() = id);
+  ON public.profiles FOR UPDATE USING (
+    auth.uid() = id 
+    OR EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role IN ('ADMIN', 'SUPER_ADMIN'))
+  );
 
 -- Sellers Policies
 CREATE POLICY "Public can view active sellers" 
@@ -172,30 +209,79 @@ CREATE POLICY "Sellers can update their own seller profile"
 
 -- Listings Policies
 CREATE POLICY "Public can view active listings" 
-  ON public.listings FOR SELECT USING (status = 'active' OR auth.uid() = seller_id);
+  ON public.listings FOR SELECT USING (
+    status = 'active' 
+    OR auth.uid() = seller_id
+    OR EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role IN ('ADMIN', 'SUPER_ADMIN'))
+  );
 
 CREATE POLICY "Authenticated sellers can insert listings" 
   ON public.listings FOR INSERT WITH CHECK (auth.uid() = seller_id);
 
-CREATE POLICY "Sellers can update their own listings" 
-  ON public.listings FOR UPDATE USING (auth.uid() = seller_id);
+CREATE POLICY "Sellers and Admins can update listings" 
+  ON public.listings FOR UPDATE USING (
+    auth.uid() = seller_id
+    OR EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role IN ('ADMIN', 'SUPER_ADMIN'))
+  );
 
-CREATE POLICY "Sellers can delete their own listings" 
-  ON public.listings FOR DELETE USING (auth.uid() = seller_id);
+CREATE POLICY "Sellers and Admins can delete listings" 
+  ON public.listings FOR DELETE USING (
+    auth.uid() = seller_id
+    OR EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role IN ('ADMIN', 'SUPER_ADMIN'))
+  );
 
 -- Orders Policies
-CREATE POLICY "Buyers and sellers can view their own orders" 
-  ON public.orders FOR SELECT USING (auth.uid() = buyer_id OR auth.uid() = seller_id);
+CREATE POLICY "Buyers, sellers, and admins can view orders" 
+  ON public.orders FOR SELECT USING (
+    auth.uid() = buyer_id 
+    OR auth.uid() = seller_id
+    OR EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role IN ('ADMIN', 'SUPER_ADMIN'))
+  );
 
 CREATE POLICY "Buyers can create orders" 
   ON public.orders FOR INSERT WITH CHECK (auth.uid() = buyer_id);
 
-CREATE POLICY "Involved parties can update orders" 
-  ON public.orders FOR UPDATE USING (auth.uid() = buyer_id OR auth.uid() = seller_id);
+CREATE POLICY "Involved parties and admins can update orders" 
+  ON public.orders FOR UPDATE USING (
+    auth.uid() = buyer_id 
+    OR auth.uid() = seller_id
+    OR EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role IN ('ADMIN', 'SUPER_ADMIN'))
+  );
+
+-- Reports Policies
+CREATE POLICY "Authenticated users can submit reports" 
+  ON public.reports FOR INSERT WITH CHECK (auth.role() = 'authenticated');
+
+CREATE POLICY "Reporters and Admins can view reports" 
+  ON public.reports FOR SELECT USING (
+    auth.uid() = reporter_id 
+    OR EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role IN ('ADMIN', 'SUPER_ADMIN'))
+  );
+
+CREATE POLICY "Admins can update reports" 
+  ON public.reports FOR UPDATE USING (
+    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role IN ('ADMIN', 'SUPER_ADMIN'))
+  );
+
+-- Audit Logs Policies
+CREATE POLICY "Admins can view audit logs" 
+  ON public.audit_logs FOR SELECT USING (
+    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role IN ('ADMIN', 'SUPER_ADMIN'))
+  );
+
+CREATE POLICY "Admins can insert audit logs" 
+  ON public.audit_logs FOR INSERT WITH CHECK (
+    auth.role() = 'authenticated'
+  );
 
 -- Admin Users Policies
 CREATE POLICY "Admins viewable by authenticated users" 
   ON public.admin_users FOR SELECT USING (auth.role() = 'authenticated');
+
+CREATE POLICY "Super Admins can manage admin users"
+  ON public.admin_users FOR ALL USING (
+    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'SUPER_ADMIN')
+  );
 
 -- ==========================================================
 -- AUTOMATIC PROFILE CREATION TRIGGER ON SIGNUP

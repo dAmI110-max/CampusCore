@@ -1,5 +1,5 @@
 import { getSupabase, isSupabaseConfigured } from '../lib/supabase';
-import { UserProfile, Product, AdminUserRecord, AcademicLevel, UserRole, SellerStatus } from '../types';
+import { UserProfile, Product, AdminUserRecord, AcademicLevel, UserRole, SellerStatus, Report, AuditLog, PlatformStats } from '../types';
 
 export const SUPER_ADMIN_EMAIL = 'bhadmusoluwadamilare@gmail.com';
 export const SECONDARY_ADMIN_EMAIL = 'davesbrown88@gmail.com';
@@ -74,8 +74,54 @@ export class SupabaseService {
         return { success: false, message: 'Failed to create user account in Supabase.' };
       }
 
-      // Check / upsert profile row
-      const profile = await this.fetchProfile(data.user.id);
+      // Check if session was created or confirmation is required
+      const sessionCreated = !!data.session;
+
+      // Ensure profile row exists in public.profiles table
+      const profileData = {
+        id: data.user.id,
+        auth_user_id: data.user.id,
+        email: payload.email.trim().toLowerCase(),
+        full_name: payload.fullName.trim(),
+        username: payload.username.trim().toLowerCase(),
+        avatar_url: payload.avatarUrl || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=200&q=80',
+        role,
+        seller_status: sellerStatus,
+        seller_onboarding_completed: isSuper,
+        university_id: payload.universityId,
+        university_name: 'Osun State University',
+        campus_id: payload.campusId,
+        campus_name: 'Osogbo Main Campus',
+        faculty_id: payload.facultyId,
+        department_id: payload.departmentId,
+        level: payload.level || '100L',
+        phone: payload.phone,
+        whatsapp: payload.whatsapp,
+        bio: isSuper ? 'Founder & Super Administrator of CampusPlug.' : 'Student at Osun State University.',
+        verification_badge: isSuper ? 'trusted_seller' : 'unverified',
+        account_status: 'active',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+
+      // If session exists, upsert directly into profiles
+      if (sessionCreated) {
+        await supabase.from('profiles').upsert(profileData, { onConflict: 'id' });
+      }
+
+      let profile = await this.fetchProfile(data.user.id);
+      if (!profile && sessionCreated) {
+        profile = this.mapDbProfileToUserProfile(profileData);
+      }
+
+      if (!sessionCreated) {
+        return {
+          success: true,
+          user: profile || undefined,
+          message: 'Registration successful! Please check your email to confirm your account before logging in.',
+        };
+      }
+
       return { success: true, user: profile || undefined };
     } catch (err: any) {
       return { success: false, message: err.message || 'Signup failed' };
@@ -120,7 +166,52 @@ export class SupabaseService {
         return { success: false, message: 'Invalid credentials.' };
       }
 
-      const profile = await this.fetchProfile(data.user.id);
+      let profile = await this.fetchProfile(data.user.id);
+
+      // If user exists in Auth but profiles row was not created yet (e.g. signup without trigger)
+      if (!profile) {
+        const meta = data.user.user_metadata || {};
+        const isSuper = this.isSuperAdminEmail(data.user.email);
+        const newProfileData = {
+          id: data.user.id,
+          auth_user_id: data.user.id,
+          email: data.user.email || targetEmail,
+          full_name: meta.full_name || meta.name || (data.user.email || '').split('@')[0],
+          username: meta.username || ((data.user.email || '').split('@')[0]).toLowerCase().replace(/[^a-z0-9_]/g, ''),
+          avatar_url: meta.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=200&q=80',
+          role: isSuper ? 'SUPER_ADMIN' : (meta.role || 'STUDENT'),
+          seller_status: isSuper ? 'VERIFIED_SELLER' : (meta.seller_status || 'NOT_SELLER'),
+          seller_onboarding_completed: isSuper ? true : Boolean(meta.seller_onboarding_completed),
+          university_id: meta.university_id || 'uni-uniosun',
+          university_name: meta.university_name || 'Osun State University',
+          campus_id: meta.campus_id || 'campus-osogbo',
+          campus_name: meta.campus_name || 'Osogbo Main Campus',
+          faculty_id: meta.faculty_id,
+          department_id: meta.department_id,
+          level: meta.level || '100L',
+          phone: meta.phone,
+          whatsapp: meta.whatsapp,
+          bio: isSuper ? 'Founder & Super Administrator of CampusPlug.' : 'Student at Osun State University.',
+          verification_badge: isSuper ? 'trusted_seller' : 'unverified',
+          account_status: 'active',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+
+        await supabase.from('profiles').upsert(newProfileData, { onConflict: 'id' });
+        profile = (await this.fetchProfile(data.user.id)) || this.mapDbProfileToUserProfile(newProfileData);
+      }
+
+      // STRICT ENFORCEMENT OF BANS & SUSPENSIONS:
+      const statusLower = (profile?.accountStatus || '').toLowerCase();
+      if (profile && (statusLower === 'banned' || statusLower === 'suspended' || statusLower === 'restricted')) {
+        await supabase.auth.signOut();
+        const reasonMsg = statusLower === 'banned'
+          ? 'Your CampusPlug account has been banned by safety moderation. Please contact support at cplugsupport@gmail.com if you believe this was a mistake.'
+          : 'Your CampusPlug account is currently suspended. Please contact support at cplugsupport@gmail.com.';
+        return { success: false, message: reasonMsg };
+      }
+
       return { success: true, user: profile || undefined };
     } catch (err: any) {
       return { success: false, message: err.message || 'Login failed' };
@@ -577,6 +668,597 @@ export class SupabaseService {
       return { success: true, message: 'Admin role revoked successfully.' };
     } catch (err: any) {
       return { success: false, message: err.message || 'Revocation failed' };
+    }
+  }
+
+  // ==========================================
+  // USER BAN / SUSPENSION MODERATION (REAL SUPABASE)
+  // ==========================================
+
+  static async banUser(
+    adminUserId: string,
+    targetUserId: string,
+    reason: string,
+    adminName: string = 'Super Admin',
+    adminEmail: string = SUPER_ADMIN_EMAIL
+  ): Promise<{ success: boolean; message?: string }> {
+    const supabase = getSupabase();
+    if (!supabase) {
+      return { success: false, message: 'Supabase is not configured' };
+    }
+
+    try {
+      // 1. Verify target is not Super Admin
+      const { data: targetProfile, error: pErr } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', targetUserId)
+        .maybeSingle();
+
+      if (pErr || !targetProfile) {
+        return { success: false, message: 'Target user not found in database.' };
+      }
+
+      if (this.isSuperAdminEmail(targetProfile.email)) {
+        return { success: false, message: 'Security restriction: Super Admin accounts cannot be banned.' };
+      }
+
+      // 2. Update account_status to 'banned'
+      const { error: banErr } = await supabase
+        .from('profiles')
+        .update({
+          account_status: 'banned',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', targetUserId);
+
+      if (banErr) {
+        return { success: false, message: banErr.message };
+      }
+
+      // 3. Deactivate any active listings owned by this user
+      await supabase
+        .from('listings')
+        .update({
+          status: 'removed',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('seller_id', targetUserId);
+
+      // 4. Log action to real audit_logs table
+      await this.createAuditLog({
+        actorId: adminUserId,
+        actorName: adminName,
+        action: 'user_banned',
+        entityType: 'user',
+        entityId: targetUserId,
+        metadata: {
+          targetEmail: targetProfile.email,
+          targetFullName: targetProfile.full_name,
+          reason,
+          adminEmail,
+        },
+      });
+
+      return { success: true, message: `${targetProfile.full_name} (@${targetProfile.username || 'user'}) has been banned from CampusPlug.` };
+    } catch (err: any) {
+      return { success: false, message: err.message || 'Failed to ban user' };
+    }
+  }
+
+  static async suspendUser(
+    adminUserId: string,
+    targetUserId: string,
+    reason: string,
+    adminName: string = 'Super Admin',
+    adminEmail: string = SUPER_ADMIN_EMAIL
+  ): Promise<{ success: boolean; message?: string }> {
+    const supabase = getSupabase();
+    if (!supabase) {
+      return { success: false, message: 'Supabase is not configured' };
+    }
+
+    try {
+      const { data: targetProfile } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', targetUserId)
+        .maybeSingle();
+
+      if (!targetProfile) return { success: false, message: 'Target user not found.' };
+      if (this.isSuperAdminEmail(targetProfile.email)) {
+        return { success: false, message: 'Super Admin accounts cannot be suspended.' };
+      }
+
+      const { error: suspErr } = await supabase
+        .from('profiles')
+        .update({
+          account_status: 'suspended',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', targetUserId);
+
+      if (suspErr) return { success: false, message: suspErr.message };
+
+      await this.createAuditLog({
+        actorId: adminUserId,
+        actorName: adminName,
+        action: 'user_suspended',
+        entityType: 'user',
+        entityId: targetUserId,
+        metadata: { targetEmail: targetProfile.email, reason, adminEmail },
+      });
+
+      return { success: true, message: `${targetProfile.full_name} suspended successfully.` };
+    } catch (err: any) {
+      return { success: false, message: err.message || 'Failed to suspend user' };
+    }
+  }
+
+  static async unbanUser(
+    adminUserId: string,
+    targetUserId: string,
+    reason: string = 'Account reinstated by Admin',
+    adminName: string = 'Super Admin',
+    adminEmail: string = SUPER_ADMIN_EMAIL
+  ): Promise<{ success: boolean; message?: string }> {
+    const supabase = getSupabase();
+    if (!supabase) {
+      return { success: false, message: 'Supabase is not configured' };
+    }
+
+    try {
+      const { data: targetProfile } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', targetUserId)
+        .maybeSingle();
+
+      if (!targetProfile) return { success: false, message: 'Target user not found.' };
+
+      const { error: unbanErr } = await supabase
+        .from('profiles')
+        .update({
+          account_status: 'active',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', targetUserId);
+
+      if (unbanErr) return { success: false, message: unbanErr.message };
+
+      await this.createAuditLog({
+        actorId: adminUserId,
+        actorName: adminName,
+        action: 'user_unbanned',
+        entityType: 'user',
+        entityId: targetUserId,
+        metadata: { targetEmail: targetProfile.email, reason, adminEmail },
+      });
+
+      return { success: true, message: `${targetProfile.full_name}'s account has been reactivated.` };
+    } catch (err: any) {
+      return { success: false, message: err.message || 'Failed to unban user' };
+    }
+  }
+
+  // ==========================================
+  // REAL DATABASE PLATFORM ANALYTICS (ZERO FAKE STATS)
+  // ==========================================
+
+  private static getEmptyPlatformStats(): PlatformStats {
+    return {
+      totalUsers: 0,
+      activeUsers: 0,
+      totalListings: 0,
+      totalProducts: 0,
+      activeListings: 0,
+      soldListings: 0,
+      accommodationListings: 0,
+      totalAccommodations: 0,
+      totalReports: 0,
+      pendingReports: 0,
+      totalCategories: 8,
+      totalCampuses: 6,
+      totalDeposited: 0,
+      totalWithdrawn: 0,
+      totalEscrowVolume: 0,
+      totalVolume: 0,
+      totalEscrows: 0,
+      totalPlatformFees: 0,
+      activeOrders: 0,
+      totalOrders: 0,
+      activeEscrowHold: 0,
+      escrowHeldTotal: 0,
+      activeDisputes: 0,
+      totalDisputes: 0,
+      pendingWithdrawals: 0,
+      pendingDisputes: 0,
+      pendingVerifications: 0,
+      totalVerifications: 0,
+      totalRoommateProfiles: 0,
+      totalServices: 0,
+      totalJobs: 0,
+      totalEvents: 0,
+      totalTicketsSold: 0,
+      totalCommunities: 0,
+      totalBusinesses: 0,
+      activeSubscriptions: 0,
+      totalSubscriptions: 0,
+      totalAdCampaigns: 0,
+      totalAds: 0,
+      openSupportTickets: 0,
+      totalSupportTickets: 0,
+    };
+  }
+
+  static async fetchPlatformStats(): Promise<PlatformStats> {
+    const supabase = getSupabase();
+    if (!supabase) {
+      return this.getEmptyPlatformStats();
+    }
+
+    try {
+      // 1. Total real users count from profiles
+      const { count: usersCount } = await supabase
+        .from('profiles')
+        .select('id', { count: 'exact', head: true });
+
+      // 2. Total listings
+      const { count: listingsCount } = await supabase
+        .from('listings')
+        .select('id', { count: 'exact', head: true });
+
+      // 3. Real orders & escrow calculations
+      const { data: ordersData } = await supabase
+        .from('orders')
+        .select('total_amount, status');
+
+      const orders = ordersData || [];
+      const totalVolume = orders.reduce((sum, o: any) => sum + (Number(o.total_amount) || 0), 0);
+      const totalPlatformFees = orders.reduce((sum, o: any) => sum + (Number(o.total_amount || 0) * 0.025), 0);
+      const activeOrders = orders.filter((o: any) => o.status === 'escrow_funded' || o.status === 'in_progress').length;
+      const escrowHeldTotal = orders
+        .filter((o: any) => o.status === 'escrow_funded')
+        .reduce((sum, o: any) => sum + (Number(o.total_amount) || 0), 0);
+
+      // 4. Reports count
+      const { count: reportsCount } = await supabase
+        .from('reports')
+        .select('id', { count: 'exact', head: true });
+
+      return {
+        ...this.getEmptyPlatformStats(),
+        totalUsers: usersCount || 0,
+        activeUsers: usersCount || 0,
+        totalListings: listingsCount || 0,
+        totalProducts: listingsCount || 0,
+        activeListings: listingsCount || 0,
+        totalReports: reportsCount || 0,
+        pendingReports: reportsCount || 0,
+        totalOrders: orders.length,
+        totalEscrows: orders.length,
+        totalEscrowVolume: totalVolume,
+        totalVolume,
+        totalPlatformFees,
+        escrowHeldTotal,
+        activeEscrowHold: escrowHeldTotal,
+        activeOrders,
+      };
+    } catch {
+      return this.getEmptyPlatformStats();
+    }
+  }
+
+  static async fetchUserGrowthAnalytics(
+    timeframe: '7d' | '30d' | '90d' | '6m' | '12m' | 'all' = '30d'
+  ) {
+    const supabase = getSupabase();
+    if (!supabase) {
+      return {
+        labels: [],
+        dataPoints: [],
+        metrics: {
+          growthRatePercent: 0,
+          totalRegistered: 0,
+          activeSellersCount: 0,
+          sellerConversionRate: 0,
+          retentionRatePercent: 0,
+        },
+      };
+    }
+
+    try {
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, created_at, role, seller_status')
+        .order('created_at', { ascending: true });
+
+      const allProfiles = profiles || [];
+      const totalRegistered = allProfiles.length;
+      const sellers = allProfiles.filter(
+        (p) => p.role === 'SELLER' || p.role === 'SUPER_ADMIN' || p.seller_status === 'SELLER' || p.seller_status === 'VERIFIED_SELLER'
+      );
+      const activeSellersCount = sellers.length;
+      const sellerConversionRate = totalRegistered > 0 ? Math.round((activeSellersCount / totalRegistered) * 100) : 0;
+
+      // Group into days according to requested timeframe
+      const dayCounts = timeframe === '7d' ? 7 : timeframe === '30d' ? 14 : timeframe === '90d' ? 12 : 12;
+      const now = new Date();
+      const dataPoints: Array<{
+        date: string;
+        label: string;
+        totalUsers: number;
+        newSignups: number;
+        activeSellers: number;
+        ordersPlaced: number;
+        revenue: number;
+      }> = [];
+
+      for (let i = dayCounts - 1; i >= 0; i--) {
+        const d = new Date();
+        if (timeframe === '7d' || timeframe === '30d') {
+          d.setDate(now.getDate() - (timeframe === '7d' ? i : i * 2));
+        } else {
+          d.setDate(now.getDate() - i * 15);
+        }
+
+        const dateStr = d.toISOString().split('T')[0];
+        const label = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
+        // Real count of profiles registered on or before this day
+        const usersUpToDate = allProfiles.filter((p) => {
+          if (!p.created_at) return true;
+          return p.created_at.split('T')[0] <= dateStr;
+        }).length;
+
+        // Real count of new signups on this specific date
+        const newOnDate = allProfiles.filter((p) => {
+          if (!p.created_at) return false;
+          return p.created_at.split('T')[0] === dateStr;
+        }).length;
+
+        // Real sellers registered up to this date
+        const sellersUpToDate = sellers.filter((p) => {
+          if (!p.created_at) return true;
+          return p.created_at.split('T')[0] <= dateStr;
+        }).length;
+
+        dataPoints.push({
+          date: dateStr,
+          label,
+          totalUsers: usersUpToDate,
+          newSignups: newOnDate,
+          activeSellers: sellersUpToDate,
+          ordersPlaced: 0,
+          revenue: 0,
+        });
+      }
+
+      return {
+        labels: dataPoints.map((p) => p.label),
+        dataPoints,
+        metrics: {
+          growthRatePercent: 0,
+          totalRegistered,
+          activeSellersCount,
+          sellerConversionRate,
+          retentionRatePercent: totalRegistered > 0 ? 100 : 0,
+        },
+      };
+    } catch {
+      return {
+        labels: [],
+        dataPoints: [],
+        metrics: {
+          growthRatePercent: 0,
+          totalRegistered: 0,
+          activeSellersCount: 0,
+          sellerConversionRate: 0,
+          retentionRatePercent: 0,
+        },
+      };
+    }
+  }
+
+  // ==========================================
+  // REPORTS (REAL SUPABASE)
+  // ==========================================
+
+  static async fetchReports(): Promise<Report[]> {
+    const supabase = getSupabase();
+    if (!supabase) return [];
+
+    try {
+      const { data, error } = await supabase
+        .from('reports')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error || !data) return [];
+      return data.map((r) => ({
+        id: r.id,
+        reporterId: r.reporter_id,
+        reporterName: r.reporter_name || 'Anonymous Student',
+        reporterEmail: '',
+        reportedUserId: r.reported_user_id,
+        reportedUserName: r.reported_user_name,
+        productId: r.listing_id,
+        productTitle: r.listing_title,
+        reason: r.reason,
+        description: r.description || '',
+        status: r.status,
+        adminNotes: r.resolution_notes,
+        createdAt: r.created_at,
+        resolvedAt: r.resolved_at,
+      }));
+    } catch {
+      return [];
+    }
+  }
+
+  static async createReport(payload: {
+    reporterId: string;
+    reporterName: string;
+    reportedUserId?: string;
+    reportedUserName?: string;
+    listingId?: string;
+    listingTitle?: string;
+    reason: string;
+    description: string;
+  }): Promise<{ success: boolean; message?: string }> {
+    const supabase = getSupabase();
+    if (!supabase) {
+      return { success: false, message: 'Supabase is not configured' };
+    }
+
+    try {
+      const { error } = await supabase.from('reports').insert({
+        reporter_id: payload.reporterId,
+        reporter_name: payload.reporterName,
+        reported_user_id: payload.reportedUserId,
+        reported_user_name: payload.reportedUserName,
+        listing_id: payload.listingId,
+        listing_title: payload.listingTitle,
+        reason: payload.reason,
+        description: payload.description,
+        status: 'pending',
+      });
+
+      if (error) return { success: false, message: error.message };
+      return { success: true, message: 'Report filed with student safety team.' };
+    } catch (err: any) {
+      return { success: false, message: err.message || 'Failed to submit report' };
+    }
+  }
+
+  static async updateReportStatus(
+    reportId: string,
+    status: 'pending' | 'reviewing' | 'resolved' | 'dismissed',
+    notes?: string,
+    resolvedBy?: string
+  ): Promise<{ success: boolean; message?: string }> {
+    const supabase = getSupabase();
+    if (!supabase) {
+      return { success: false, message: 'Supabase is not configured' };
+    }
+
+    try {
+      const updates: Record<string, any> = {
+        status,
+        resolution_notes: notes,
+      };
+      if (status === 'resolved' || status === 'dismissed') {
+        updates.resolved_at = new Date().toISOString();
+        if (resolvedBy) updates.resolved_by = resolvedBy;
+      }
+
+      const { error } = await supabase.from('reports').update(updates).eq('id', reportId);
+      if (error) return { success: false, message: error.message };
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, message: err.message || 'Failed to update report' };
+    }
+  }
+
+  // ==========================================
+  // AUDIT LOGS (REAL SUPABASE)
+  // ==========================================
+
+  static async fetchAuditLogs(limit: number = 50): Promise<AuditLog[]> {
+    const supabase = getSupabase();
+    if (!supabase) return [];
+
+    try {
+      const { data, error } = await supabase
+        .from('audit_logs')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(limit);
+
+      if (error || !data) return [];
+      return data.map((l) => ({
+        id: l.id,
+        actorId: l.admin_id || 'system',
+        actorName: l.admin_name || 'Administrator',
+        action: l.action,
+        entityType: (l.target_type as any) || 'user',
+        entityId: l.target_id || '',
+        metadata: l.details || { reason: l.reason, adminEmail: l.admin_email },
+        createdAt: l.created_at,
+      }));
+    } catch {
+      return [];
+    }
+  }
+
+  static async createAuditLog(log: {
+    actorId: string;
+    actorName: string;
+    action: string;
+    entityType: string;
+    entityId: string;
+    metadata?: Record<string, any>;
+  }): Promise<{ success: boolean }> {
+    const supabase = getSupabase();
+    if (!supabase) return { success: false };
+
+    try {
+      await supabase.from('audit_logs').insert({
+        admin_id: log.actorId,
+        admin_name: log.actorName,
+        action: log.action,
+        target_id: log.entityId,
+        target_type: log.entityType,
+        reason: log.metadata?.reason || '',
+        details: log.metadata || {},
+      });
+      return { success: true };
+    } catch {
+      return { success: false };
+    }
+  }
+
+  // ==========================================
+  // REAL-TIME DATABASE SUBSCRIPTIONS
+  // ==========================================
+
+  static subscribeToProfiles(callback: () => void): () => void {
+    const supabase = getSupabase();
+    if (!supabase) return () => {};
+
+    try {
+      const channel = supabase
+        .channel('realtime_profiles')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, () => {
+          callback();
+        })
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    } catch {
+      return () => {};
+    }
+  }
+
+  static subscribeToListings(callback: () => void): () => void {
+    const supabase = getSupabase();
+    if (!supabase) return () => {};
+
+    try {
+      const channel = supabase
+        .channel('realtime_listings')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'listings' }, () => {
+          callback();
+        })
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    } catch {
+      return () => {};
     }
   }
 

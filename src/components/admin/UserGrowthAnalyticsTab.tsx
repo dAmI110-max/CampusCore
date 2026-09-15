@@ -1,5 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { StorageService } from '../../services/storageService';
+import { SupabaseService } from '../../services/supabaseService';
+import { isSupabaseConfigured } from '../../lib/supabase';
 import {
   TrendingUp,
   Users,
@@ -12,12 +14,42 @@ import {
   ShieldCheck,
   CheckCircle2,
   Percent,
+  RefreshCw,
 } from 'lucide-react';
 
 export const UserGrowthAnalyticsTab: React.FC = () => {
   const [timeframe, setTimeframe] = useState<'7d' | '30d' | '90d' | '6m' | '12m' | 'all'>('30d');
+  const [analytics, setAnalytics] = useState(() => StorageService.getUserGrowthAnalytics('30d'));
+  const [isLoading, setIsLoading] = useState(false);
 
-  const analytics = StorageService.getUserGrowthAnalytics(timeframe);
+  useEffect(() => {
+    let mounted = true;
+    async function loadAnalytics() {
+      setIsLoading(true);
+      if (isSupabaseConfigured()) {
+        try {
+          const res = await SupabaseService.fetchUserGrowthAnalytics(timeframe);
+          if (mounted && res && res.dataPoints.length > 0) {
+            setAnalytics(res);
+            setIsLoading(false);
+            return;
+          }
+        } catch {
+          // fallback
+        }
+      }
+      if (mounted) {
+        setAnalytics(StorageService.getUserGrowthAnalytics(timeframe));
+        setIsLoading(false);
+      }
+    }
+
+    loadAnalytics();
+    return () => {
+      mounted = false;
+    };
+  }, [timeframe]);
+
   const { dataPoints, metrics } = analytics;
 
   const maxUsers = Math.max(...dataPoints.map((d) => d.totalUsers), 10);

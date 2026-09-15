@@ -251,62 +251,102 @@ export class StorageService {
     }
 
     // Dynamic one-time migration & demo data purge (checked via version flag to prevent infinite loops)
-    const MIGRATION_VERSION = 'v5_uniosun_complete_faculties_and_computing';
+    const MIGRATION_VERSION = 'v8_purge_prototype_users_empty_marketplace_v8';
     const currentMigration = safeGetRaw('campusplug_migration_ver');
 
     if (currentMigration !== MIGRATION_VERSION) {
       try {
-        // 1. Purge prototype / demo products from database
-        const existingProducts = getItem<Product[]>(STORAGE_KEYS.PRODUCTS, []);
-        const cleanProducts = existingProducts.filter((p) => !this.DEMO_PRODUCT_IDS.has(p.id));
-        setItem(STORAGE_KEYS.PRODUCTS, cleanProducts);
+        // 1. Empty marketplace products completely as requested
+        setItem(STORAGE_KEYS.PRODUCTS, []);
+        setItem(STORAGE_KEYS.FAVORITES, []);
+        setItem(STORAGE_KEYS.ACCOMMODATIONS, []);
 
-        // 2. Clear demo favorites
-        const existingFavorites = getItem<{ id: string; userId: string; productId: string; createdAt: string }[]>(
-          STORAGE_KEYS.FAVORITES,
-          []
-        );
-        const cleanFavorites = existingFavorites.filter((f) => !this.DEMO_PRODUCT_IDS.has(f.productId));
-        setItem(STORAGE_KEYS.FAVORITES, cleanFavorites);
-
-        // 3. Ensure complete up-to-date faculties and departments (including Computing & IT)
+        // 2. Ensure complete up-to-date faculties and departments
         setItem(STORAGE_KEYS.FACULTIES, INITIAL_FACULTIES);
         setItem(STORAGE_KEYS.DEPARTMENTS, INITIAL_DEPARTMENTS);
         setItem(STORAGE_KEYS.CAMPUSES, INITIAL_CAMPUSES);
         setItem(STORAGE_KEYS.UNIVERSITIES, INITIAL_UNIVERSITIES);
 
-        // 4. Ensure bhadmusoluwadamilare@gmail.com is designated Super Admin
-        const users = this.getUsers();
-        const hasDamilare = users.some((u) => u.email.toLowerCase() === this.SUPER_ADMIN_EMAIL.toLowerCase());
-        let cleanUsers = [...users];
+        // 3. Purge all prototype users, keeping only Super Admins and genuine registered users
+        const prototypeIds = new Set([
+          'usr-tunde', 'usr-zainab', 'usr-chidi', 'usr-amaka', 'usr-emeka',
+          'usr-fatima', 'usr-segun', 'usr-aisha', 'usr-blessing', 'usr-korede',
+          'usr-halima', 'usr-folake', 'usr-ibrahim', 'usr-yetunde', 'usr-damilola',
+          'usr-ngozi', 'usr-taiwo'
+        ]);
 
-        if (!hasDamilare) {
-          cleanUsers.unshift(INITIAL_USERS[0]);
-        } else {
-          cleanUsers = cleanUsers.map((u) => {
-            if (u.email.toLowerCase() === this.SUPER_ADMIN_EMAIL.toLowerCase()) {
-              return {
-                ...u,
-                role: 'SUPER_ADMIN' as const,
-                sellerStatus: 'VERIFIED_SELLER' as const,
-                sellerOnboardingCompleted: true,
-              };
-            }
-            return u;
-          });
+        const currentUsers = getItem<UserProfile[]>(STORAGE_KEYS.USERS, INITIAL_USERS);
+        const filteredUsers = currentUsers.filter((u) => {
+          const isSuperAdmin =
+            u.email?.toLowerCase() === this.SUPER_ADMIN_EMAIL.toLowerCase() ||
+            u.email?.toLowerCase() === this.SECONDARY_SUPER_ADMIN_EMAIL.toLowerCase() ||
+            u.role === 'SUPER_ADMIN';
+          return isSuperAdmin || (!prototypeIds.has(u.id) && !u.id.startsWith('usr-tunde'));
+        });
+
+        // Ensure Damilare and Dave are present and have 0 products
+        const damilareUser = INITIAL_USERS[0];
+        const daveUser = INITIAL_USERS[1];
+
+        let cleanUsers = [...filteredUsers];
+        if (!cleanUsers.some((u) => u.email?.toLowerCase() === this.SUPER_ADMIN_EMAIL.toLowerCase())) {
+          cleanUsers.unshift(damilareUser);
         }
+        if (!cleanUsers.some((u) => u.email?.toLowerCase() === this.SECONDARY_SUPER_ADMIN_EMAIL.toLowerCase())) {
+          cleanUsers.push(daveUser);
+        }
+
         setItem(STORAGE_KEYS.USERS, cleanUsers);
 
-        // 5. Ensure Super Admin admin records
+        // Clean saved accounts of prototype users
+        const savedAccounts = getItem<UserProfile[]>(STORAGE_KEYS.SAVED_ACCOUNTS, []);
+        const cleanSavedAccounts = savedAccounts.filter((u) => !prototypeIds.has(u.id) && !u.id.startsWith('usr-tunde'));
+        setItem(STORAGE_KEYS.SAVED_ACCOUNTS, cleanSavedAccounts);
+
+        // If current user is a prototype user, reset current user ID
+        const currentUserId = getItem<string | null>(STORAGE_KEYS.CURRENT_USER_ID, null);
+        if (currentUserId && (prototypeIds.has(currentUserId) || currentUserId.startsWith('usr-tunde'))) {
+          setItem(STORAGE_KEYS.CURRENT_USER_ID, null);
+        }
+
+        // 4. Ensure Super Admin admin records
         const adminRecords = getItem<AdminUserRecord[]>(STORAGE_KEYS.ADMIN_USERS, []);
-        const hasDamilareAdmin = adminRecords.some((a) => a.email.toLowerCase() === this.SUPER_ADMIN_EMAIL.toLowerCase());
         const cleanAdmins = [...adminRecords];
-        if (!hasDamilareAdmin) {
+        
+        if (!cleanAdmins.some((a) => a.email.toLowerCase() === this.SUPER_ADMIN_EMAIL.toLowerCase())) {
           cleanAdmins.unshift({
             id: 'admin-rec-superadmin-damilare',
             userId: 'usr-superadmin-damilare',
             email: this.SUPER_ADMIN_EMAIL,
             fullName: 'Oluwadamilare Bhadmus',
+            role: 'SUPER_ADMIN',
+            permissions: {
+              canManageUsers: true,
+              canSuspendUsers: true,
+              canManageListings: true,
+              canFeatureListings: true,
+              canModerateReports: true,
+              canManageFinance: true,
+              canReviewDisputes: true,
+              canManageEvents: true,
+              canManageJobs: true,
+              canModerateCommunities: true,
+              canManageSupport: true,
+              canManageSettings: true,
+            },
+            assignedBy: 'system',
+            assignedByName: 'Ace Tech Platform Security Core',
+            assignedAt: '2025-01-01T00:00:00Z',
+            status: 'active',
+          });
+        }
+
+        if (!cleanAdmins.some((a) => a.email.toLowerCase() === this.SECONDARY_SUPER_ADMIN_EMAIL.toLowerCase())) {
+          cleanAdmins.push({
+            id: 'admin-rec-superadmin-dave',
+            userId: 'usr-superadmin-dave',
+            email: this.SECONDARY_SUPER_ADMIN_EMAIL,
+            fullName: 'Dave Brown',
             role: 'SUPER_ADMIN',
             permissions: {
               canManageUsers: true,
@@ -382,7 +422,7 @@ export class StorageService {
     setItem(STORAGE_KEYS.ANNOUNCEMENTS, INITIAL_ANNOUNCEMENTS);
     setItem(STORAGE_KEYS.SUPPORT_TICKETS, INITIAL_SUPPORT_TICKETS);
     setItem(STORAGE_KEYS.FEATURE_FLAGS, INITIAL_FEATURE_FLAGS);
-    setItem(STORAGE_KEYS.CURRENT_USER_ID, 'usr-tunde'); // Default to Student Seller
+    setItem(STORAGE_KEYS.CURRENT_USER_ID, null);
     safeSetRaw(STORAGE_KEYS.INITIALIZED, 'true');
   }
 
@@ -455,7 +495,7 @@ export class StorageService {
   }
 
   static getCurrentUser(): UserProfile | null {
-    const currentId = getItem<string | null>(STORAGE_KEYS.CURRENT_USER_ID, 'usr-tunde');
+    const currentId = getItem<string | null>(STORAGE_KEYS.CURRENT_USER_ID, null);
     if (!currentId) return null;
     const users = this.getUsers();
     return users.find((u) => u.id === currentId) || null;
@@ -611,12 +651,42 @@ export class StorageService {
       status: 'active',
     };
 
-    const records = getItem<AdminUserRecord[]>(STORAGE_KEYS.ADMIN_USERS, [defaultSuperAdminRecord]);
+    const secondarySuperAdminRecord: AdminUserRecord = {
+      id: 'admin-rec-superadmin-dave',
+      userId: 'usr-superadmin-dave',
+      email: this.SECONDARY_SUPER_ADMIN_EMAIL,
+      fullName: 'Dave Brown',
+      role: 'SUPER_ADMIN',
+      permissions: {
+        canManageUsers: true,
+        canSuspendUsers: true,
+        canManageListings: true,
+        canFeatureListings: true,
+        canModerateReports: true,
+        canManageFinance: true,
+        canReviewDisputes: true,
+        canManageEvents: true,
+        canManageJobs: true,
+        canModerateCommunities: true,
+        canManageSupport: true,
+        canManageSettings: true,
+      },
+      assignedBy: 'system',
+      assignedByName: 'Ace Tech Platform Security Core',
+      assignedAt: '2025-01-01T00:00:00Z',
+      status: 'active',
+    };
+
+    let records = getItem<AdminUserRecord[]>(STORAGE_KEYS.ADMIN_USERS, [defaultSuperAdminRecord, secondarySuperAdminRecord]);
     
-    // Guarantee Super Admin record is always present and has full permissions
-    const hasSuperAdmin = records.find((r) => r.email.toLowerCase() === this.SUPER_ADMIN_EMAIL.toLowerCase());
-    if (!hasSuperAdmin) {
-      return [defaultSuperAdminRecord, ...records];
+    // Guarantee Super Admin records are always present and have full permissions
+    const hasDamilare = records.some((r) => r.email.toLowerCase() === this.SUPER_ADMIN_EMAIL.toLowerCase());
+    if (!hasDamilare) {
+      records = [defaultSuperAdminRecord, ...records];
+    }
+    const hasDave = records.some((r) => r.email.toLowerCase() === this.SECONDARY_SUPER_ADMIN_EMAIL.toLowerCase());
+    if (!hasDave) {
+      records = [...records, secondarySuperAdminRecord];
     }
     return records;
   }
@@ -846,7 +916,19 @@ export class StorageService {
     return { success: true, message: `Account status updated to ${status}.` };
   }
 
+  static syncProfilesFromSupabase(profiles: UserProfile[]): void {
+    if (profiles && profiles.length > 0) {
+      setItem(STORAGE_KEYS.USERS, profiles);
+    }
+  }
+
   // --- PRODUCTS ---
+  static syncProductsFromSupabase(products: Product[]): void {
+    if (products) {
+      setItem(STORAGE_KEYS.PRODUCTS, products);
+    }
+  }
+
   static getProducts(filters?: FilterOptions): Product[] {
     let products = getItem<Product[]>(STORAGE_KEYS.PRODUCTS, INITIAL_PRODUCTS);
 

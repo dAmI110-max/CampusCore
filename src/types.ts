@@ -1408,9 +1408,11 @@ export interface PlatformStats {
   totalUsers: number;
   activeUsers: number;
   totalListings: number;
+  totalProducts?: number;
   activeListings: number;
   soldListings: number;
   accommodationListings: number;
+  totalAccommodations?: number;
   totalReports: number;
   pendingReports: number;
   totalCategories: number;
@@ -1419,14 +1421,19 @@ export interface PlatformStats {
   totalDeposited: number;
   totalWithdrawn: number;
   totalEscrowVolume: number;
+  totalVolume?: number;
+  totalEscrows?: number;
   totalPlatformFees: number;
   activeOrders: number;
   totalOrders?: number;
   activeEscrowHold?: number;
+  escrowHeldTotal?: number;
   activeDisputes?: number;
+  totalDisputes?: number;
   pendingWithdrawals: number;
   pendingDisputes: number;
   pendingVerifications: number;
+  totalVerifications?: number;
   totalRoommateProfiles: number;
   // Phase 3 Ecosystem Stats
   totalServices?: number;
@@ -1436,8 +1443,11 @@ export interface PlatformStats {
   totalCommunities?: number;
   totalBusinesses?: number;
   activeSubscriptions?: number;
+  totalSubscriptions?: number;
   totalAdCampaigns?: number;
+  totalAds?: number;
   openSupportTickets?: number;
+  totalSupportTickets?: number;
 }
 
 export interface FilterOptions {

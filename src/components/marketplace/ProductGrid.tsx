@@ -34,10 +34,10 @@ export const ProductGrid: React.FC<ProductGridProps> = ({
   if (products.length === 0) {
     return (
       <EmptyState
-        type="search"
-        title="No listings yet"
-        description="Be the first student to sell on CampusPlug."
-        actionText={onStartSelling ? "Start Selling" : "Reset Filters"}
+        type="products"
+        title="No products available yet"
+        description="New products will appear here as students start selling on CampusPlug."
+        actionText="Be the first seller to list yours."
         onAction={onStartSelling || onResetFilters}
       />
     );

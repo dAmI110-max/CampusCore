@@ -4,6 +4,8 @@ import { ToastProvider, useToast } from './context/ToastContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ModalProvider, useModal } from './context/ModalContext';
 import { StorageService } from './services/storageService';
+import { SupabaseService } from './services/supabaseService';
+import { isSupabaseConfigured } from './lib/supabase';
 import {
   Product,
   Accommodation,
@@ -101,13 +103,36 @@ const MainApp: React.FC = () => {
     sortBy: 'newest',
   });
 
-  // Re-fetch reactive state from StorageService
+  // Re-fetch reactive state from StorageService & Supabase
   useEffect(() => {
     const handleStorageUpdate = () => {
       setRefreshKey((prev) => prev + 1);
     };
     window.addEventListener('campusplug_storage_update', handleStorageUpdate);
-    return () => window.removeEventListener('campusplug_storage_update', handleStorageUpdate);
+
+    // Sync live listings from Supabase on mount
+    async function syncSupabaseData() {
+      if (isSupabaseConfigured()) {
+        try {
+          const listings = await SupabaseService.fetchListings();
+          if (listings) {
+            StorageService.syncProductsFromSupabase(listings);
+          }
+        } catch {
+          // ignore
+        }
+      }
+    }
+    syncSupabaseData();
+
+    const unsubListings = SupabaseService.subscribeToListings(() => {
+      syncSupabaseData();
+    });
+
+    return () => {
+      window.removeEventListener('campusplug_storage_update', handleStorageUpdate);
+      unsubListings();
+    };
   }, []);
 
   const categories: Category[] = StorageService.getCategories();
@@ -449,6 +474,7 @@ const MainApp: React.FC = () => {
                 onProductClick={(p) => openModal('product_detail', { product: p })}
                 onFavoriteToggle={() => setRefreshKey((k) => k + 1)}
                 onResetFilters={handleResetProductFilters}
+                onStartSelling={handleOpenCreateProduct}
               />
             </motion.div>
           )}

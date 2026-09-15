@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Product, Accommodation, Category } from '../../types';
 import { useAuth } from '../../context/AuthContext';
+import { StorageService } from '../../services/storageService';
 import {
   Search,
   ArrowRight,
@@ -17,6 +18,8 @@ import {
   MapPin,
   ExternalLink,
   ShieldCheck,
+  PackageOpen,
+  PlusCircle,
 } from 'lucide-react';
 import { motion } from 'motion/react';
 
@@ -57,20 +60,14 @@ export const BentoHeroGrid: React.FC<BentoHeroGridProps> = ({
     }
   };
 
-  // Hot product pick for the featured bento tile
-  const hotProduct = featuredProducts[0] || {
-    id: 'hot-demo-1',
-    title: 'iPhone 13 Pro Max - Graphite (128GB)',
-    description: 'Excellent condition, 90% battery health, factory unlocked with charger and pouch.',
-    price: 450000,
-    condition: 'Like New',
-    categoryName: 'Phones & Tablets',
-    sellerName: 'Boluwatife O.',
-    sellerCampus: 'Osogbo Main Campus',
-    sellerAvatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80',
-    images: ['https://images.unsplash.com/photo-1592750475338-74b7b21085ab?auto=format&fit=crop&w=800&q=80'],
-    views: 42,
-  } as Product;
+  // Real stats for currentUser (Dave Brown or any user)
+  const userProducts = currentUser ? StorageService.getUserProducts(currentUser.id) : [];
+  const userAds = userProducts.filter((p) => p.status === 'active').length;
+  const userSold = userProducts.filter((p) => p.status === 'sold').length;
+  const userLikes = userProducts.reduce((sum, p) => sum + (p.favoritesCount || 0), 0);
+
+  // Hot product pick for the featured bento tile (real product or null)
+  const hotProduct = featuredProducts.length > 0 ? featuredProducts[0] : null;
 
   const sampleHostels = featuredAccommodations.slice(0, 2);
 
@@ -172,13 +169,17 @@ export const BentoHeroGrid: React.FC<BentoHeroGridProps> = ({
                 />
                 <div className="truncate">
                   <p className="font-bold text-slate-900 dark:text-white text-sm truncate">
-                    {currentUser?.fullName || 'Boluwatife Ogunleye'}
+                    {currentUser?.fullName || 'Student Guest'}
                   </p>
                   <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
-                    {currentUser?.department || currentUser?.departmentName || 'Computer Science'} • {currentUser?.level || '300L'}
+                    {currentUser
+                      ? `${currentUser.department || currentUser.departmentName || 'UNIOSUN Student'} • ${currentUser.level || '300L'}`
+                      : 'Campus Commerce Hub'}
                   </p>
                   <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5 uppercase tracking-wider font-semibold">
-                    ID: UNIOSUN-{currentUser?.id?.slice(-4) || '8842'}
+                    {currentUser
+                      ? `ID: UNIOSUN-${currentUser.id?.slice(-4).toUpperCase() || 'MEMBER'}`
+                      : 'UNIOSUN TRUST NETWORK'}
                   </p>
                 </div>
               </div>
@@ -187,15 +188,15 @@ export const BentoHeroGrid: React.FC<BentoHeroGridProps> = ({
             {/* Account mini statistics */}
             <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800 grid grid-cols-3 gap-2">
               <div className="text-center p-2 rounded-xl bg-slate-50 dark:bg-slate-800/60">
-                <p className="text-lg font-extrabold text-indigo-600 dark:text-indigo-400">6</p>
+                <p className="text-lg font-extrabold text-indigo-600 dark:text-indigo-400">{userAds}</p>
                 <p className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Ads</p>
               </div>
               <div className="text-center p-2 rounded-xl bg-slate-50 dark:bg-slate-800/60">
-                <p className="text-lg font-extrabold text-indigo-600 dark:text-indigo-400">4</p>
+                <p className="text-lg font-extrabold text-indigo-600 dark:text-indigo-400">{userSold}</p>
                 <p className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Sold</p>
               </div>
               <div className="text-center p-2 rounded-xl bg-slate-50 dark:bg-slate-800/60">
-                <p className="text-lg font-extrabold text-indigo-600 dark:text-indigo-400">18</p>
+                <p className="text-lg font-extrabold text-indigo-600 dark:text-indigo-400">{userLikes}</p>
                 <p className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Likes</p>
               </div>
             </div>
@@ -259,63 +260,92 @@ export const BentoHeroGrid: React.FC<BentoHeroGridProps> = ({
             </button>
           </motion.div>
 
-          {/* 4. HOT FEATURED ITEM BENTO TILE (Col-span 4) */}
-          <motion.div
-            initial={{ opacity: 0, y: 15 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3, delay: 0.2 }}
-            onClick={() => onProductClick(hotProduct)}
-            className="lg:col-span-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-[28px] sm:rounded-[32px] overflow-hidden shadow-xs flex flex-col group cursor-pointer hover:shadow-md hover:border-indigo-300 dark:hover:border-indigo-700 transition-all"
-          >
-            <div className="h-44 bg-slate-100 dark:bg-slate-800 relative overflow-hidden flex items-center justify-center">
-              <img
-                src={hotProduct.images[0]}
-                alt={hotProduct.title}
-                referrerPolicy="no-referrer"
-                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-              />
-              <span className="text-[10px] absolute top-3.5 left-3.5 bg-white/90 dark:bg-slate-900/90 backdrop-blur-xs px-2.5 py-1 rounded-full font-bold text-indigo-600 dark:text-indigo-400 shadow-xs flex items-center gap-1 border border-slate-200 dark:border-slate-700">
-                <Flame className="w-3 h-3 text-rose-500 fill-rose-500" /> HOT ITEM
-              </span>
-              <span className="text-[10px] absolute bottom-2 right-2 bg-slate-900/80 text-white backdrop-blur-xs px-2 py-0.5 rounded-md font-medium">
-                {hotProduct.condition}
-              </span>
-            </div>
+          {/* 4. HOT FEATURED ITEM BENTO TILE / EMPTY STATE (Col-span 4) */}
+          {hotProduct ? (
+            <motion.div
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, delay: 0.2 }}
+              onClick={() => onProductClick(hotProduct)}
+              className="lg:col-span-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-[28px] sm:rounded-[32px] overflow-hidden shadow-xs flex flex-col group cursor-pointer hover:shadow-md hover:border-indigo-300 dark:hover:border-indigo-700 transition-all"
+            >
+              <div className="h-44 bg-slate-100 dark:bg-slate-800 relative overflow-hidden flex items-center justify-center">
+                <img
+                  src={hotProduct.images[0]}
+                  alt={hotProduct.title}
+                  referrerPolicy="no-referrer"
+                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                />
+                <span className="text-[10px] absolute top-3.5 left-3.5 bg-white/90 dark:bg-slate-900/90 backdrop-blur-xs px-2.5 py-1 rounded-full font-bold text-indigo-600 dark:text-indigo-400 shadow-xs flex items-center gap-1 border border-slate-200 dark:border-slate-700">
+                  <Flame className="w-3 h-3 text-rose-500 fill-rose-500" /> HOT ITEM
+                </span>
+                <span className="text-[10px] absolute bottom-2 right-2 bg-slate-900/80 text-white backdrop-blur-xs px-2 py-0.5 rounded-md font-medium">
+                  {hotProduct.condition}
+                </span>
+              </div>
 
-            <div className="p-4 sm:p-5 flex flex-col justify-between flex-1">
-              <div>
-                <div className="flex justify-between items-start mb-1.5">
-                  <h4 className="font-bold text-slate-900 dark:text-white text-sm leading-tight line-clamp-1 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
-                    {hotProduct.title}
-                  </h4>
-                  <p className="text-indigo-600 dark:text-indigo-400 font-black text-sm shrink-0 ml-2">
-                    ₦{hotProduct.price.toLocaleString()}
+              <div className="p-4 sm:p-5 flex flex-col justify-between flex-1">
+                <div>
+                  <div className="flex justify-between items-start mb-1.5">
+                    <h4 className="font-bold text-slate-900 dark:text-white text-sm leading-tight line-clamp-1 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
+                      {hotProduct.title}
+                    </h4>
+                    <p className="text-indigo-600 dark:text-indigo-400 font-black text-sm shrink-0 ml-2">
+                      ₦{hotProduct.price.toLocaleString()}
+                    </p>
+                  </div>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2 leading-relaxed">
+                    {hotProduct.description}
                   </p>
                 </div>
-                <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2 leading-relaxed">
-                  {hotProduct.description}
-                </p>
-              </div>
 
-              <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-100 dark:border-slate-800">
-                <div className="flex items-center gap-2">
-                  <img
-                    src={hotProduct.sellerAvatar}
-                    alt={hotProduct.sellerName}
-                    referrerPolicy="no-referrer"
-                    className="w-5 h-5 rounded-full object-cover ring-1 ring-slate-200 dark:ring-slate-700"
-                  />
-                  <span className="text-xs font-medium text-slate-600 dark:text-slate-300">{hotProduct.sellerName}</span>
+                <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-100 dark:border-slate-800">
+                  <div className="flex items-center gap-2">
+                    <img
+                      src={hotProduct.sellerAvatar}
+                      alt={hotProduct.sellerName}
+                      referrerPolicy="no-referrer"
+                      className="w-5 h-5 rounded-full object-cover ring-1 ring-slate-200 dark:ring-slate-700"
+                    />
+                    <span className="text-xs font-medium text-slate-600 dark:text-slate-300">{hotProduct.sellerName}</span>
+                  </div>
+                  <button
+                    type="button"
+                    className="text-indigo-600 dark:text-indigo-400 text-xs font-bold hover:underline flex items-center gap-1"
+                  >
+                    VIEW DETAILS <ArrowRight className="w-3 h-3" />
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  className="text-indigo-600 dark:text-indigo-400 text-xs font-bold hover:underline flex items-center gap-1"
-                >
-                  VIEW DETAILS <ArrowRight className="w-3 h-3" />
-                </button>
               </div>
-            </div>
-          </motion.div>
+            </motion.div>
+          ) : (
+            <motion.div
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, delay: 0.2 }}
+              onClick={onOpenCreateProduct}
+              className="lg:col-span-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-[28px] sm:rounded-[32px] p-6 shadow-xs flex flex-col justify-between group cursor-pointer hover:shadow-md hover:border-indigo-300 dark:hover:border-indigo-700 transition-all text-center"
+            >
+              <div className="flex flex-col items-center justify-center flex-1 py-4">
+                <div className="w-14 h-14 rounded-2xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center mb-3 border border-indigo-100 dark:border-indigo-900/50 group-hover:scale-105 transition-transform">
+                  <Sparkles className="w-6 h-6" />
+                </div>
+                <h4 className="text-base font-bold text-slate-900 dark:text-white mb-1.5">
+                  No products available yet
+                </h4>
+                <p className="text-xs text-slate-500 dark:text-slate-400 max-w-xs leading-relaxed mb-4">
+                  New products will appear here as students start selling on CampusPlug.
+                </p>
+                <span className="inline-flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-xs transition-colors">
+                  <PlusCircle className="w-4 h-4" />
+                  Be the first seller to list yours.
+                </span>
+              </div>
+              <div className="pt-3 border-t border-slate-100 dark:border-slate-800 text-[11px] text-slate-400">
+                Verified Student Commerce • Escrow Protected
+              </div>
+            </motion.div>
+          )}
 
           {/* 5. HOSTEL LISTINGS BENTO TILE (Col-span 5) */}
           <motion.div
@@ -337,40 +367,56 @@ export const BentoHeroGrid: React.FC<BentoHeroGridProps> = ({
             </div>
 
             <div className="space-y-2.5">
-              {sampleHostels.map((acc) => (
-                <div
-                  key={acc.id}
-                  onClick={() => onAccommodationClick(acc)}
-                  className="p-3.5 bg-slate-50 dark:bg-slate-800/70 rounded-2xl border border-slate-100 dark:border-slate-700 flex items-center gap-3.5 hover:bg-indigo-50/50 dark:hover:bg-slate-800 hover:border-indigo-200 dark:hover:border-indigo-800 transition-all cursor-pointer group"
-                >
-                  <img
-                    src={acc.images[0]}
-                    alt={acc.title}
-                    referrerPolicy="no-referrer"
-                    className="w-13 h-13 rounded-xl object-cover shrink-0"
-                  />
-                  <div className="truncate flex-1">
-                    <p className="font-bold text-slate-800 dark:text-slate-200 text-xs sm:text-sm truncate group-hover:text-indigo-600 dark:group-hover:text-indigo-400">
-                      {acc.title}
-                    </p>
-                    <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate flex items-center gap-1 mt-0.5">
-                      <MapPin className="w-2.5 h-2.5 text-indigo-500" /> {acc.distanceToCampus}
-                    </p>
-                    <p className="text-indigo-600 dark:text-indigo-400 font-bold text-xs mt-0.5">
-                      ₦{acc.price.toLocaleString()} <span className="text-[10px] text-slate-400 font-normal">/{(acc.rentalPeriod || 'year').toLowerCase()}</span>
-                    </p>
-                  </div>
-                  <span
-                    className={`text-[9px] font-bold px-2 py-0.5 rounded-full shrink-0 ${
-                      acc.available
-                        ? 'bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
-                        : 'bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
-                    }`}
+              {sampleHostels.length > 0 ? (
+                sampleHostels.map((acc) => (
+                  <div
+                    key={acc.id}
+                    onClick={() => onAccommodationClick(acc)}
+                    className="p-3.5 bg-slate-50 dark:bg-slate-800/70 rounded-2xl border border-slate-100 dark:border-slate-700 flex items-center gap-3.5 hover:bg-indigo-50/50 dark:hover:bg-slate-800 hover:border-indigo-200 dark:hover:border-indigo-800 transition-all cursor-pointer group"
                   >
-                    {acc.available ? 'AVAILABLE' : 'OCCUPIED'}
-                  </span>
+                    <img
+                      src={acc.images[0]}
+                      alt={acc.title}
+                      referrerPolicy="no-referrer"
+                      className="w-13 h-13 rounded-xl object-cover shrink-0"
+                    />
+                    <div className="truncate flex-1">
+                      <p className="font-bold text-slate-800 dark:text-slate-200 text-xs sm:text-sm truncate group-hover:text-indigo-600 dark:group-hover:text-indigo-400">
+                        {acc.title}
+                      </p>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate flex items-center gap-1 mt-0.5">
+                        <MapPin className="w-2.5 h-2.5 text-indigo-500" /> {acc.distanceToCampus}
+                      </p>
+                      <p className="text-indigo-600 dark:text-indigo-400 font-bold text-xs mt-0.5">
+                        ₦{acc.price.toLocaleString()} <span className="text-[10px] text-slate-400 font-normal">/{(acc.rentalPeriod || 'year').toLowerCase()}</span>
+                      </p>
+                    </div>
+                    <span
+                      className={`text-[9px] font-bold px-2 py-0.5 rounded-full shrink-0 ${
+                        acc.available
+                          ? 'bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
+                          : 'bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
+                      }`}
+                    >
+                      {acc.available ? 'AVAILABLE' : 'OCCUPIED'}
+                    </span>
+                  </div>
+                ))
+              ) : (
+                <div className="py-6 px-4 text-center rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-dashed border-slate-200 dark:border-slate-700/60">
+                  <Home className="w-8 h-8 text-indigo-500/60 mx-auto mb-2" />
+                  <p className="text-xs font-bold text-slate-800 dark:text-slate-200">No hostel listings yet</p>
+                  <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1 max-w-xs mx-auto">
+                    Off-campus lodges and student rooms will appear here as caretakers list them.
+                  </p>
+                  <button
+                    onClick={onExploreAccommodation}
+                    className="mt-3 text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
+                  >
+                    View Hostels Hub
+                  </button>
                 </div>
-              ))}
+              )}
             </div>
 
             {/* Roommate tip */}
@@ -403,26 +449,26 @@ export const BentoHeroGrid: React.FC<BentoHeroGridProps> = ({
 
               <div className="space-y-3.5">
                 <div className="flex items-start gap-2.5">
-                  <div className="w-2 h-2 rounded-full bg-indigo-400 mt-1.5 shrink-0" />
+                  <div className="w-2 h-2 rounded-full bg-emerald-400 mt-1.5 shrink-0" />
                   <div>
-                    <p className="text-xs font-bold text-slate-100">HP Pavilion Laptop</p>
-                    <p className="text-[10px] text-slate-400">Listed in Osogbo • Just now</p>
+                    <p className="text-xs font-bold text-slate-100">Live Escrow Engine</p>
+                    <p className="text-[10px] text-slate-400">Buyer & seller protection active</p>
                   </div>
                 </div>
 
                 <div className="flex items-start gap-2.5">
-                  <div className="w-2 h-2 rounded-full bg-emerald-400 mt-1.5 shrink-0" />
+                  <div className="w-2 h-2 rounded-full bg-indigo-400 mt-1.5 shrink-0" />
                   <div>
-                    <p className="text-xs font-bold text-slate-100">Lodge Available</p>
-                    <p className="text-[10px] text-slate-400">Self-contain in Ikire • 5m ago</p>
+                    <p className="text-xs font-bold text-slate-100">Multi-Campus Network</p>
+                    <p className="text-[10px] text-slate-400">All 6 UNIOSUN campuses ready</p>
                   </div>
                 </div>
 
                 <div className="flex items-start gap-2.5">
                   <div className="w-2 h-2 rounded-full bg-amber-400 mt-1.5 shrink-0" />
                   <div>
-                    <p className="text-xs font-bold text-slate-100">Trending Search</p>
-                    <p className="text-[10px] text-slate-400">"Casio FX-991EX" up 65%</p>
+                    <p className="text-xs font-bold text-slate-100">Student Marketplace</p>
+                    <p className="text-[10px] text-slate-400">Open for new student listings</p>
                   </div>
                 </div>
               </div>
