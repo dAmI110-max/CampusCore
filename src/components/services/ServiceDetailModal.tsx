@@ -194,7 +194,7 @@ export const ServiceDetailModal: React.FC<ServiceDetailModalProps> = ({
                     {isHourly && <span className="text-xs text-indigo-200">/ hour</span>}
                   </div>
                   <p className="text-xs text-indigo-200/80 mt-1">
-                    Protected by CampusPlug Escrow Guarantee. Funds released only when you approve the work.
+                    Protected by CampusCore Escrow Guarantee. Funds released only when you approve the work.
                   </p>
                 </div>
 
@@ -279,7 +279,7 @@ export const ServiceDetailModal: React.FC<ServiceDetailModalProps> = ({
                         service.providerName
                       )},%20I%20saw%20your%20service%20"${encodeURIComponent(
                         service.title
-                      )}"%20on%20CampusPlug.`}
+                      )}"%20on%20CampusCore.`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="w-full py-2.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-semibold rounded-xl text-xs transition-colors flex items-center justify-center gap-2"
@@ -294,7 +294,7 @@ export const ServiceDetailModal: React.FC<ServiceDetailModalProps> = ({
               <div className="p-4 bg-amber-50/80 border border-amber-200/80 rounded-2xl flex items-start gap-3">
                 <ShieldCheck className="w-5 h-5 text-amber-700 flex-shrink-0 mt-0.5" />
                 <div className="text-xs text-amber-900">
-                  <span className="font-bold block">CampusPlug Service Protection</span>
+                  <span className="font-bold block">CampusCore Service Protection</span>
                   Never pay off-platform! All service bookings are locked in Escrow. If the provider fails to deliver to specifications, your payment is refunded 100%.
                 </div>
               </div>

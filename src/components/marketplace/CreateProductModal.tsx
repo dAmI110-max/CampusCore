@@ -168,7 +168,7 @@ export const CreateProductModal: React.FC<CreateProductModalProps> = ({
         images: imagesToUse,
       });
 
-      success('Your listing is live on CampusPlug marketplace!');
+      success('Your listing is live on CampusCore marketplace!');
       setIsSubmitting(false);
       if (onSuccess) onSuccess();
       onClose();

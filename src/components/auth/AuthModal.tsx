@@ -5,7 +5,8 @@ import { StorageService } from '../../services/storageService';
 import { AcademicLevel, UserProfile } from '../../types';
 import { X, Mail, Lock, Phone, ArrowRight, ShieldCheck, CheckCircle2, User, Trash2, ChevronRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { CampusPlugLogo } from '../common/CampusPlugLogo';
+import { CampusCoreLogo } from '../common/CampusCoreLogo';
+import { ALL_UNIOSUN_FACULTIES, getUNIOSUNDepartmentsByFaculty } from '../../data/uniosunAcademicData';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -50,24 +51,24 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
   const universities = StorageService.getUniversities();
   const campuses = StorageService.getCampuses(universityId);
-  const faculties = StorageService.getFaculties(universityId);
-  const departments = StorageService.getDepartments(facultyId);
+  const faculties = universityId === 'uni-uniosun' ? ALL_UNIOSUN_FACULTIES : StorageService.getFaculties(universityId);
+  const departments = universityId === 'uni-uniosun' ? getUNIOSUNDepartmentsByFaculty(facultyId) : StorageService.getDepartments(facultyId);
 
   const handleUniversityChange = (newUniId: string) => {
     setUniversityId(newUniId);
     const newCampuses = StorageService.getCampuses(newUniId);
     if (newCampuses.length > 0) setCampusId(newCampuses[0].id);
-    const newFacs = StorageService.getFaculties(newUniId);
+    const newFacs = newUniId === 'uni-uniosun' ? ALL_UNIOSUN_FACULTIES : StorageService.getFaculties(newUniId);
     if (newFacs.length > 0) {
       setFacultyId(newFacs[0].id);
-      const newDepts = StorageService.getDepartments(newFacs[0].id);
+      const newDepts = newUniId === 'uni-uniosun' ? getUNIOSUNDepartmentsByFaculty(newFacs[0].id) : StorageService.getDepartments(newFacs[0].id);
       if (newDepts.length > 0) setDepartmentId(newDepts[0].id);
     }
   };
 
   const handleFacultyChange = (newFacId: string) => {
     setFacultyId(newFacId);
-    const newDepts = StorageService.getDepartments(newFacId);
+    const newDepts = universityId === 'uni-uniosun' ? getUNIOSUNDepartmentsByFaculty(newFacId) : StorageService.getDepartments(newFacId);
     if (newDepts.length > 0) {
       setDepartmentId(newDepts[0].id);
     }
@@ -87,7 +88,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     setLoading(false);
 
     if (res.success) {
-      success('Logged in successfully! Welcome back to CampusPlug.');
+      success('Logged in successfully! Welcome back to CampusCore.');
       onClose();
     } else {
       error(res.message || 'Login failed. Please check your credentials.');
@@ -133,6 +134,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       return;
     }
 
+    if (!facultyId || !departmentId) {
+      error('Please select your Faculty and Department.');
+      return;
+    }
+
     setLoading(true);
     const res = await signup({
       fullName: fullName.trim(),
@@ -150,7 +156,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     setLoading(false);
 
     if (res.success) {
-      success('Account created successfully! Welcome to UNIOSUN CampusPlug.');
+      success('Account created successfully! Welcome to UNIOSUN CampusCore.');
       onClose();
     } else {
       error(res.message || 'Signup failed. Please try again.');
@@ -181,11 +187,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           initial={{ opacity: 0, scale: 0.95, y: 15 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 15 }}
-          className="bg-white dark:bg-slate-900 rounded-3xl max-w-lg w-full p-6 sm:p-8 shadow-2xl border border-slate-200 dark:border-slate-800 relative my-8 text-slate-900 dark:text-slate-100 transition-colors"
+          className="bg-white dark:bg-[#130b21] rounded-3xl max-w-lg w-full p-6 sm:p-8 shadow-2xl border border-slate-200 dark:border-purple-950/70 relative my-8 text-slate-900 dark:text-slate-100 transition-colors"
         >
           <button
             onClick={onClose}
-            className="absolute top-5 right-5 p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+            className="absolute top-5 right-5 p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-full hover:bg-slate-100 dark:hover:bg-purple-950/50 transition-colors cursor-pointer"
             aria-label="Close"
           >
             <X className="w-5 h-5" />
@@ -193,10 +199,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
           {/* Logo & Header */}
           <div className="flex flex-col items-start gap-2 mb-6">
-            <CampusPlugLogo variant="full" theme="auto" size="lg" />
+            <CampusCoreLogo variant="full" theme="auto" size="lg" />
             <div>
               <h2 className="text-lg sm:text-xl font-black text-slate-900 dark:text-white mt-1">
-                {mode === 'login' && 'Sign in to CampusPlug'}
+                {mode === 'login' && 'Sign in to CampusCore'}
                 {mode === 'signup' && 'Create Student / Seller Account'}
                 {mode === 'reset' && 'Reset Your Password'}
               </h2>
@@ -210,13 +216,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
           {/* Mode Switcher Tabs */}
           {mode !== 'reset' && (
-            <div className="flex p-1 bg-slate-100 dark:bg-slate-800 rounded-2xl mb-5">
+            <div className="flex p-1 bg-slate-100 dark:bg-purple-950/40 rounded-2xl mb-5">
               <button
                 type="button"
                 onClick={() => setMode('login')}
                 className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer ${
                   mode === 'login'
-                    ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-white shadow-xs'
+                    ? 'bg-white dark:bg-purple-900/60 text-purple-600 dark:text-purple-200 shadow-xs'
                     : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white'
                 }`}
               >
@@ -227,7 +233,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 onClick={() => setMode('signup')}
                 className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer ${
                   mode === 'signup'
-                    ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-white shadow-xs'
+                    ? 'bg-white dark:bg-purple-900/60 text-purple-600 dark:text-purple-200 shadow-xs'
                     : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white'
                 }`}
               >
@@ -392,7 +398,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                       value={loginPassword}
                       onChange={(e) => setLoginPassword(e.target.value)}
                       placeholder="••••••••"
-                      className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-2xl text-xs sm:text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-colors"
+                      className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-2xl text-xs sm:text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-colors"
                     />
                   </div>
                 </div>
@@ -400,9 +406,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full py-3 px-4 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm transition-all shadow-md shadow-indigo-600/20 active:scale-98 disabled:opacity-50 flex items-center justify-center gap-2 mt-2 cursor-pointer"
+                  className="w-full py-3 px-4 rounded-2xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-sm transition-all shadow-md shadow-purple-600/20 active:scale-98 disabled:opacity-50 flex items-center justify-center gap-2 mt-2 cursor-pointer"
                 >
-                  {loading ? 'Signing In...' : 'Sign In to CampusPlug'}
+                  {loading ? 'Signing In...' : 'Sign In to CampusCore'}
                   <ArrowRight className="w-4 h-4" />
                 </button>
               </form>
@@ -419,7 +425,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                       return (
                         <div
                           key={account.id}
-                          className="p-2 rounded-xl bg-slate-50 dark:bg-slate-800/70 border border-slate-200/80 dark:border-slate-700/80 flex items-center justify-between gap-2 hover:border-indigo-300 dark:hover:border-indigo-600 transition-colors group"
+                          className="p-2 rounded-xl bg-slate-50 dark:bg-slate-800/70 border border-slate-200/80 dark:border-slate-700/80 flex items-center justify-between gap-2 hover:border-purple-300 dark:hover:border-purple-600 transition-colors group"
                         >
                           <button
                             type="button"
@@ -586,6 +592,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                     </option>
                   ))}
                 </select>
+                <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
+                  Department not listed? Contact CampusCore Support.
+                </p>
               </div>
 
               <div>
@@ -603,7 +612,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full py-3 px-4 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm transition-all shadow-md shadow-indigo-600/20 active:scale-98 disabled:opacity-50 flex items-center justify-center gap-2 mt-3 cursor-pointer"
+                className="w-full py-3 px-4 rounded-2xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-sm transition-all shadow-md shadow-purple-600/20 active:scale-98 disabled:opacity-50 flex items-center justify-center gap-2 mt-3 cursor-pointer"
               >
                 {loading ? 'Creating Account...' : 'Complete Registration'}
                 <ArrowRight className="w-4 h-4" />
@@ -629,7 +638,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                       setMode('login');
                       setResetSent(false);
                     }}
-                    className="px-4 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 transition-colors cursor-pointer"
+                    className="px-4 py-2 rounded-xl bg-purple-600 text-white text-xs font-bold hover:bg-purple-700 transition-colors cursor-pointer"
                   >
                     Back to Sign In
                   </button>
@@ -663,7 +672,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                     </button>
                     <button
                       type="submit"
-                      className="flex-1 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs cursor-pointer shadow-sm shadow-indigo-600/20"
+                      className="flex-1 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs cursor-pointer shadow-sm shadow-purple-600/20"
                     >
                       Send Reset Link
                     </button>

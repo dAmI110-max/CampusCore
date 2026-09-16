@@ -1,7 +1,7 @@
 import React from 'react';
 import { useTheme } from '../../context/ThemeContext';
 
-interface CampusPlugLogoProps {
+export interface CampusCoreLogoProps {
   variant?: 'full' | 'icon' | 'compact';
   theme?: 'light' | 'dark' | 'auto';
   size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl';
@@ -10,10 +10,10 @@ interface CampusPlugLogoProps {
 }
 
 /**
- * Official CampusPlug Brand Logo & Icon Component
- * Faithfully matches the official uploaded CampusPlug circuit-plug monogram ("CP") and "CampusPlug" wordmark.
+ * Official CampusCore Brand Logo & Icon Component
+ * Features the concentric geometric "Core" nexus emblem with lilac and royal purple styling.
  */
-export const CampusPlugLogo: React.FC<CampusPlugLogoProps> = ({
+export const CampusCoreLogo: React.FC<CampusCoreLogoProps> = ({
   variant = 'full',
   theme = 'auto',
   size = 'md',
@@ -32,8 +32,10 @@ export const CampusPlugLogo: React.FC<CampusPlugLogoProps> = ({
     isDarkTheme = theme === 'dark';
   }
 
-  const primaryColor = isDarkTheme ? '#FFFFFF' : '#0F172A';
-  const secondaryDotColor = isDarkTheme ? '#38BDF8' : '#0F172A'; // Tech accent or monochrome
+  // Lilac & Purple Theme Colors
+  const purplePrimary = isDarkTheme ? '#c084fc' : '#7e22ce';
+  const lilacAccent = isDarkTheme ? '#e9d5ff' : '#a855f7';
+  const coreNodeColor = isDarkTheme ? '#faf5ff' : '#6b21a8';
 
   // Dimensions
   const iconDimensions = {
@@ -54,7 +56,7 @@ export const CampusPlugLogo: React.FC<CampusPlugLogoProps> = ({
 
   const currentDim = iconDimensions[size];
 
-  // SVG Symbol: The Official CampusPlug "CP" Monogram with Circuit Prongs
+  // SVG Symbol: The Official CampusCore Concentric Orbit & Nucleus Monogram
   const SymbolSVG = (
     <svg
       width={currentDim.w}
@@ -63,62 +65,43 @@ export const CampusPlugLogo: React.FC<CampusPlugLogoProps> = ({
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
       className="shrink-0 transition-transform duration-200 group-hover:scale-105"
-      aria-label="CampusPlug Symbol"
+      aria-label="CampusCore Symbol"
     >
-      {/* Outer 'C' Arch Loop */}
+      <defs>
+        <linearGradient id="ccGradPrimary" x1="20" y1="20" x2="180" y2="180" gradientUnits="userSpaceOnUse">
+          <stop stopColor={purplePrimary} />
+          <stop offset="1" stopColor={lilacAccent} />
+        </linearGradient>
+        <linearGradient id="ccGradCore" x1="70" y1="70" x2="130" y2="130" gradientUnits="userSpaceOnUse">
+          <stop stopColor={lilacAccent} />
+          <stop offset="1" stopColor={coreNodeColor} />
+        </linearGradient>
+      </defs>
+
+      {/* Outer Campus Orbit (Stylized Open 'C') */}
       <path
-        d="M140 46 C116 26, 68 28, 44 54 C20 80, 20 120, 44 146 C68 172, 116 174, 140 154"
-        stroke={primaryColor}
-        strokeWidth="20"
+        d="M148 52 C120 28, 68 32, 44 60 C20 88, 22 132, 48 156 C74 180, 126 178, 152 148"
+        stroke="url(#ccGradPrimary)"
+        strokeWidth="18"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
 
-      {/* Inner 'P' Stem & Lower Loop */}
+      {/* Inner Concentric Core Arc */}
       <path
-        d="M74 158 V82 C74 72, 82 64, 92 64 H124 C142 64, 154 76, 154 94 C154 112, 142 124, 124 124 H74"
-        stroke={primaryColor}
-        strokeWidth="20"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-
-      {/* Center Horizontal Circuit Line */}
-      <path
-        d="M102 94 H146"
-        stroke={primaryColor}
+        d="M130 80 C114 66, 84 68, 72 82 C60 96, 62 118, 76 130 C90 142, 118 140, 132 122"
+        stroke="url(#ccGradCore)"
         strokeWidth="14"
         strokeLinecap="round"
       />
 
-      {/* Center Circuit Terminal Node */}
-      <circle cx="102" cy="94" r="10" fill={primaryColor} />
+      {/* Central Luminous Core Nucleus */}
+      <circle cx="100" cy="100" r="16" fill="url(#ccGradPrimary)" />
+      <circle cx="100" cy="100" r="8" fill={isDarkTheme ? '#ffffff' : '#faf5ff'} />
 
-      {/* Top Circuit Branch & Terminal Node */}
-      <path
-        d="M128 64 C138 52, 142 46, 150 44"
-        stroke={primaryColor}
-        strokeWidth="12"
-        strokeLinecap="round"
-      />
-      <circle cx="158" cy="40" r="11" fill={primaryColor} />
-
-      {/* Bottom Concentric Terminal Ring */}
-      <path
-        d="M124 124 V138"
-        stroke={primaryColor}
-        strokeWidth="12"
-        strokeLinecap="round"
-      />
-      <circle
-        cx="124"
-        cy="154"
-        r="14"
-        stroke={primaryColor}
-        strokeWidth="10"
-        fill={isDarkTheme ? '#0F172A' : '#FFFFFF'}
-      />
-      <circle cx="124" cy="154" r="5" fill={primaryColor} />
+      {/* Satellite Sparkle / Connectivity Node */}
+      <circle cx="156" cy="44" r="9" fill={lilacAccent} />
+      <circle cx="160" cy="156" r="7" fill={purplePrimary} />
     </svg>
   );
 
@@ -134,7 +117,7 @@ export const CampusPlugLogo: React.FC<CampusPlugLogoProps> = ({
     <div className={`inline-flex items-center gap-2.5 sm:gap-3 group select-none ${className}`}>
       {SymbolSVG}
 
-      {/* CampusPlug Brand Wordmark */}
+      {/* CampusCore Brand Wordmark */}
       <div className="flex flex-col">
         <div className="flex items-center gap-1.5 leading-none">
           <span
@@ -143,11 +126,11 @@ export const CampusPlugLogo: React.FC<CampusPlugLogoProps> = ({
             } transition-colors tracking-tight`}
             style={{ fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}
           >
-            CampusPlug
+            Campus<span className="text-purple-600 dark:text-purple-400">Core</span>
           </span>
 
           {showBadge && (
-            <span className="hidden sm:inline-flex items-center px-1.5 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20">
+            <span className="hidden sm:inline-flex items-center px-1.5 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider bg-purple-500/10 text-purple-600 dark:text-purple-300 border border-purple-500/20">
               UNIOSUN
             </span>
           )}
@@ -156,3 +139,8 @@ export const CampusPlugLogo: React.FC<CampusPlugLogoProps> = ({
     </div>
   );
 };
+
+// Backwards compatibility export
+export const CampusPlugLogo = CampusCoreLogo;
+export type CampusPlugLogoProps = CampusCoreLogoProps;
+

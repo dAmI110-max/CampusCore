@@ -86,12 +86,12 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
         ticketPrice: isPaid ? Number(ticketPrice) : 0,
         currency: 'NGN',
         capacity: Number(totalCapacity) || 200,
-        tags: [category, 'campusplug-event'],
+        tags: [category, 'campuscore-event'],
         status: 'upcoming',
         featured: false,
       });
 
-      success('Event created and published to CampusPlug!');
+      success('Event created and published to CampusCore!');
       onSuccess();
       onClose();
     } catch (err: any) {

@@ -24,7 +24,7 @@ import {
   ChevronDown,
   Compass,
 } from 'lucide-react';
-import { CampusPlugLogo } from '../common/CampusPlugLogo';
+import { CampusCoreLogo } from '../common/CampusCoreLogo';
 import { ThemeToggle } from '../common/ThemeToggle';
 import { AppViewMode } from '../../types';
 
@@ -145,7 +145,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               onClick={onOpenAbout}
               className="text-slate-300 hover:text-white underline underline-offset-2 transition-colors cursor-pointer"
             >
-              About CampusPlug
+              About CampusCore
             </button>
           </div>
         </div>
@@ -162,7 +162,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             }}
             className="flex items-center cursor-pointer group select-none shrink-0"
           >
-            <CampusPlugLogo variant="full" theme="auto" size="md" showBadge={true} />
+            <CampusCoreLogo variant="full" theme="auto" size="md" showBadge={true} />
           </div>
 
           {/* Desktop Nav Links */}
@@ -171,7 +171,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               onClick={() => onNavigate('home')}
               className={`px-3.5 py-2 rounded-2xl text-xs font-bold transition-all ${
                 currentView === 'home'
-                  ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-900/50 shadow-xs'
+                  ? 'bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border border-purple-200/60 dark:border-purple-800/50 shadow-xs'
                   : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-slate-900'
               }`}
             >
@@ -184,11 +184,11 @@ export const Navbar: React.FC<NavbarProps> = ({
                 onClick={() => setShowExploreDropdown(!showExploreDropdown)}
                 className={`px-3.5 py-2 rounded-2xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
                   isExploreActive
-                    ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-900/50 shadow-xs'
+                    ? 'bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border border-purple-200/60 dark:border-purple-800/50 shadow-xs'
                     : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-slate-900'
                 }`}
               >
-                <Compass className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                <Compass className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
                 Explore
                 <ChevronDown
                   className={`w-3.5 h-3.5 text-slate-400 transition-transform duration-200 ${
@@ -454,10 +454,10 @@ export const Navbar: React.FC<NavbarProps> = ({
             {onOpenUnifiedSearch && (
               <button
                 onClick={onOpenUnifiedSearch}
-                className="p-2 sm:px-3 sm:py-2 rounded-2xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold transition-colors flex items-center gap-1.5 cursor-pointer"
+                className="p-2 sm:px-3 sm:py-2 rounded-2xl bg-white dark:bg-slate-900/90 hover:bg-purple-50 dark:hover:bg-purple-950/50 text-slate-700 dark:text-slate-200 text-xs font-bold transition-colors flex items-center gap-1.5 cursor-pointer border border-purple-100/80 dark:border-purple-950/60 shadow-2xs"
                 title="Global Campus Search"
               >
-                <Search className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                <Search className="w-4 h-4 text-purple-600 dark:text-purple-400" />
                 <span className="hidden xl:inline text-slate-500 dark:text-slate-400 font-normal">Search...</span>
               </button>
             )}
@@ -471,14 +471,14 @@ export const Navbar: React.FC<NavbarProps> = ({
                 onClick={() => onNavigate('orders')}
                 className={`hidden md:flex items-center gap-1.5 px-3 py-2 rounded-2xl text-xs font-bold transition-all cursor-pointer ${
                   currentView === 'orders'
-                    ? 'bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-900/50 shadow-xs'
-                    : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                    ? 'bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-900/50 shadow-xs'
+                    : 'text-slate-700 dark:text-slate-300 hover:bg-purple-50/60 dark:hover:bg-purple-950/40'
                 }`}
                 title="Your Campus Escrow Balance"
               >
-                <ShieldCheck className="w-3.5 h-3.5 text-amber-500" />
+                <ShieldCheck className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
                 <span className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">Escrow:</span>
-                <span className="font-mono text-amber-700 dark:text-amber-300 font-bold">
+                <span className="font-mono text-purple-700 dark:text-purple-300 font-bold">
                   ₦{(userWallet?.pendingBalance || 0).toLocaleString()}
                 </span>
               </button>
@@ -487,7 +487,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             {/* Sell / Post Button */}
             <button
               onClick={handleSellClick}
-              className="px-3.5 sm:px-4 py-2 sm:py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs sm:text-sm rounded-2xl shadow-sm shadow-indigo-600/25 transition-all flex items-center gap-1.5 active:scale-95 cursor-pointer"
+              className="px-3.5 sm:px-4 py-2 sm:py-2.5 bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs sm:text-sm rounded-2xl shadow-sm shadow-purple-600/25 transition-all flex items-center gap-1.5 active:scale-95 cursor-pointer"
             >
               <Plus className="w-4 h-4" />
               <span className="hidden sm:inline">Post / Sell</span>
@@ -499,20 +499,20 @@ export const Navbar: React.FC<NavbarProps> = ({
               <div className="relative" ref={userDropdownRef}>
                 <button
                   onClick={() => setShowUserDropdown(!showUserDropdown)}
-                  className="flex items-center gap-2 p-1 sm:px-3 sm:py-1.5 rounded-2xl border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                  className="flex items-center gap-2 p-1 sm:px-3 sm:py-1.5 rounded-2xl border border-purple-100/80 dark:border-purple-950/60 hover:bg-purple-50/50 dark:hover:bg-purple-950/40 transition-colors cursor-pointer bg-white dark:bg-slate-900/90 shadow-2xs"
                 >
                   <img
                     src={currentUser.avatarUrl}
                     alt={currentUser.fullName}
                     referrerPolicy="no-referrer"
-                    className="w-7 h-7 sm:w-8 sm:h-8 rounded-full object-cover ring-2 ring-indigo-500/20"
+                    className="w-7 h-7 sm:w-8 sm:h-8 rounded-full object-cover ring-2 ring-purple-500/30"
                   />
                   <div className="hidden lg:block text-left">
                     <div className="text-xs font-bold text-slate-900 dark:text-white leading-tight flex items-center gap-1">
                       {currentUser.fullName.split(' ')[0]}
                       {userVerification?.status === 'approved' && (
                         <span title="Verified Student">
-                          <ShieldCheck className="w-3 h-3 text-indigo-600 dark:text-indigo-400" />
+                          <ShieldCheck className="w-3 h-3 text-purple-600 dark:text-purple-400" />
                         </span>
                       )}
                     </div>
@@ -537,7 +537,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                       }}
                       className="w-full text-left px-3 py-2 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors flex items-center gap-2.5"
                     >
-                      <Home className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                      <Home className="w-4 h-4 text-purple-600 dark:text-purple-400" />
                       My Profile & Listings
                     </button>
 
@@ -549,7 +549,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                       className="w-full text-left px-3 py-2 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors flex items-center justify-between"
                     >
                       <div className="flex items-center gap-2.5">
-                        <ShieldCheck className="w-4 h-4 text-amber-500" />
+                        <ShieldCheck className="w-4 h-4 text-purple-600 dark:text-purple-400" />
                         <div>
                           <div>Orders & Escrow</div>
                           <div className="text-[10px] font-normal text-slate-400">
@@ -558,7 +558,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                         </div>
                       </div>
                       {activeOrdersCount > 0 && (
-                        <span className="px-1.5 py-0.2 text-[9px] font-black bg-indigo-600 text-white rounded-full">
+                        <span className="px-1.5 py-0.2 text-[9px] font-black bg-purple-600 text-white rounded-full">
                           {activeOrdersCount}
                         </span>
                       )}
@@ -596,13 +596,13 @@ export const Navbar: React.FC<NavbarProps> = ({
               <div className="flex items-center gap-1.5">
                 <button
                   onClick={() => onOpenAuth('login')}
-                  className="px-3 py-2 text-xs font-bold text-slate-700 dark:text-slate-200 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors cursor-pointer"
+                  className="px-3 py-2 text-xs font-bold text-slate-700 dark:text-slate-200 hover:text-purple-600 dark:hover:text-purple-400 transition-colors cursor-pointer"
                 >
                   Sign In
                 </button>
                 <button
                   onClick={() => onOpenAuth('signup')}
-                  className="hidden sm:inline-flex px-3.5 py-2 rounded-2xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-xs font-bold hover:bg-slate-800 dark:hover:bg-slate-100 transition-colors cursor-pointer"
+                  className="hidden sm:inline-flex px-3.5 py-2 rounded-2xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold shadow-sm shadow-purple-600/25 transition-all cursor-pointer"
                 >
                   Sign Up
                 </button>
@@ -638,7 +638,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               }}
               className="w-full text-left px-3.5 py-2.5 rounded-2xl text-xs font-bold text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-900 flex items-center gap-3"
             >
-              <Home className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+              <Home className="w-4 h-4 text-purple-600 dark:text-purple-400" />
               Home
             </button>
 

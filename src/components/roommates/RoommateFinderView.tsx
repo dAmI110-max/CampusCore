@@ -277,7 +277,7 @@ export const RoommateFinderView: React.FC<RoommateFinderViewProps> = ({
                   <a
                     href={`https://wa.me/${profile.whatsapp.replace(/\+/g, '').replace(/\s/g, '')}?text=Hello%20${encodeURIComponent(
                       profile.userName
-                    )},%20I%20saw%20your%20roommate%20listing%20on%20CampusPlug%20for%20${encodeURIComponent(
+                    )},%20I%20saw%20your%20roommate%20listing%20on%20CampusCore%20for%20${encodeURIComponent(
                       profile.campusName
                     )}`}
                     target="_blank"

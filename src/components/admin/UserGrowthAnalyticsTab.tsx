@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { StorageService } from '../../services/storageService';
 import { SupabaseService } from '../../services/supabaseService';
 import { isSupabaseConfigured } from '../../lib/supabase';
+import { UserProfile } from '../../types';
 import {
   TrendingUp,
   Users,
@@ -15,11 +16,15 @@ import {
   CheckCircle2,
   Percent,
   RefreshCw,
+  GraduationCap,
+  Building2,
+  BookOpen,
 } from 'lucide-react';
 
 export const UserGrowthAnalyticsTab: React.FC = () => {
   const [timeframe, setTimeframe] = useState<'7d' | '30d' | '90d' | '6m' | '12m' | 'all'>('30d');
   const [analytics, setAnalytics] = useState(() => StorageService.getUserGrowthAnalytics('30d'));
+  const [realUsers, setRealUsers] = useState<UserProfile[]>(() => StorageService.getUsers());
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
@@ -28,18 +33,25 @@ export const UserGrowthAnalyticsTab: React.FC = () => {
       setIsLoading(true);
       if (isSupabaseConfigured()) {
         try {
-          const res = await SupabaseService.fetchUserGrowthAnalytics(timeframe);
+          const [res, profiles] = await Promise.all([
+            SupabaseService.fetchUserGrowthAnalytics(timeframe),
+            SupabaseService.fetchAllProfiles(),
+          ]);
           if (mounted && res && res.dataPoints.length > 0) {
             setAnalytics(res);
-            setIsLoading(false);
-            return;
           }
+          if (mounted && profiles && profiles.length > 0) {
+            setRealUsers(profiles);
+          }
+          if (mounted) setIsLoading(false);
+          return;
         } catch {
           // fallback
         }
       }
       if (mounted) {
         setAnalytics(StorageService.getUserGrowthAnalytics(timeframe));
+        setRealUsers(StorageService.getUsers());
         setIsLoading(false);
       }
     }
@@ -54,6 +66,56 @@ export const UserGrowthAnalyticsTab: React.FC = () => {
 
   const maxUsers = Math.max(...dataPoints.map((d) => d.totalUsers), 10);
   const maxRevenue = Math.max(...dataPoints.map((d) => d.revenue), 1000);
+
+  const totalStudents = realUsers.length;
+
+  // 1. Campus Stats
+  const allCampuses = StorageService.getCampuses();
+  const campusStats = allCampuses.map((c) => {
+    const count = realUsers.filter(
+      (u) =>
+        u.campusId === c.id ||
+        (u.campusName && u.campusName.toLowerCase().includes(c.name.toLowerCase()))
+    ).length;
+    const pct = totalStudents > 0 ? Math.round((count / totalStudents) * 100) : 0;
+    return { ...c, count, pct };
+  });
+
+  // 2. Faculty Stats (All UNIOSUN Faculties, shows 0 if no students, strictly calculated from real profiles)
+  const allFaculties = StorageService.getFaculties();
+  const facultyStats = allFaculties.map((f) => {
+    const count = realUsers.filter(
+      (u) =>
+        u.facultyId === f.id ||
+        (u.facultyName && (u.facultyName === f.name || u.facultyName.includes(f.name)))
+    ).length;
+    const pct = totalStudents > 0 ? Math.round((count / totalStudents) * 100) : 0;
+    return { ...f, count, pct };
+  });
+
+  // 3. Level Stats
+  const academicLevels = ['100L', '200L', '300L', '400L', '500L', 'Postgraduate'] as const;
+  const levelStats = academicLevels.map((lvl) => {
+    const count = realUsers.filter((u) => u.level === lvl).length;
+    const pct = totalStudents > 0 ? Math.round((count / totalStudents) * 100) : 0;
+    return { level: lvl, count, pct };
+  });
+
+  // 4. Department Stats
+  const departmentCounts: Record<string, { name: string; facultyName?: string; count: number }> = {};
+  realUsers.forEach((u) => {
+    if (u.departmentName) {
+      if (!departmentCounts[u.departmentName]) {
+        departmentCounts[u.departmentName] = {
+          name: u.departmentName,
+          facultyName: u.facultyName,
+          count: 0,
+        };
+      }
+      departmentCounts[u.departmentName].count += 1;
+    }
+  });
+  const topDepartments = Object.values(departmentCounts).sort((a, b) => b.count - a.count);
 
   return (
     <div className="space-y-6">
@@ -260,63 +322,119 @@ export const UserGrowthAnalyticsTab: React.FC = () => {
           </div>
         </div>
 
-        {/* Campus Distribution */}
+        {/* UNIOSUN Campus Distribution (Calculated from Real Profiles) */}
         <div className="p-6 rounded-3xl bg-white border border-slate-200 shadow-xs space-y-4">
-          <h3 className="font-bold text-slate-900 text-sm sm:text-base flex items-center gap-2">
-            <Users className="w-4 h-4 text-indigo-600" />
-            UNIOSUN Campus Activity Share
-          </h3>
+          <div className="flex items-center justify-between">
+            <h3 className="font-bold text-slate-900 text-sm sm:text-base flex items-center gap-2">
+              <Building2 className="w-4 h-4 text-indigo-600" />
+              UNIOSUN Campus Distribution (Real Data)
+            </h3>
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+              {totalStudents} Enrolled Students
+            </span>
+          </div>
 
           <div className="space-y-3 text-xs">
-            <div>
-              <div className="flex items-center justify-between font-bold text-slate-700 mb-1">
-                <span>Osogbo Main Campus (Oke-Baale)</span>
-                <span>48%</span>
+            {campusStats.map((c) => (
+              <div key={c.id}>
+                <div className="flex items-center justify-between font-bold text-slate-700 mb-1">
+                  <span>{c.name} ({c.location || 'Campus'})</span>
+                  <span className="font-mono text-slate-500">
+                    {c.count} {c.count === 1 ? 'student' : 'students'} ({c.pct}%)
+                  </span>
+                </div>
+                <div className="w-full h-2 rounded-full bg-slate-100 overflow-hidden">
+                  <div
+                    className="h-full bg-indigo-600 rounded-full transition-all duration-500"
+                    style={{ width: `${Math.max(c.pct, c.count > 0 ? 3 : 0)}%` }}
+                  />
+                </div>
               </div>
-              <div className="w-full h-2 rounded-full bg-slate-100 overflow-hidden">
-                <div className="h-full bg-indigo-600 rounded-full" style={{ width: '48%' }} />
-              </div>
-            </div>
+            ))}
+          </div>
+        </div>
+      </div>
 
-            <div>
-              <div className="flex items-center justify-between font-bold text-slate-700 mb-1">
-                <span>Ikire Campus (Humanities & Culture)</span>
-                <span>22%</span>
-              </div>
-              <div className="w-full h-2 rounded-full bg-slate-100 overflow-hidden">
-                <div className="h-full bg-emerald-500 rounded-full" style={{ width: '22%' }} />
-              </div>
-            </div>
+      {/* Real Academic Demographics: Faculty & Level Breakdown */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Real Faculty Distribution */}
+        <div className="p-6 rounded-3xl bg-white border border-slate-200 shadow-xs space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="font-bold text-slate-900 text-sm sm:text-base flex items-center gap-2">
+              <GraduationCap className="w-4 h-4 text-emerald-600" />
+              Real Faculty Distribution
+            </h3>
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+              Live UNIOSUN Faculties
+            </span>
+          </div>
+          <p className="text-[11px] text-slate-500">
+            Real student distribution across accredited faculties. If no students are enrolled in a faculty, 0 is displayed.
+          </p>
 
-            <div>
-              <div className="flex items-center justify-between font-bold text-slate-700 mb-1">
-                <span>Okuku Campus (Management Sciences)</span>
-                <span>15%</span>
+          <div className="space-y-3 text-xs max-h-96 overflow-y-auto pr-1">
+            {facultyStats.map((f) => (
+              <div key={f.id} className="p-2.5 rounded-2xl bg-slate-50 border border-slate-100">
+                <div className="flex items-center justify-between font-semibold text-slate-800 mb-1">
+                  <span className="truncate pr-2">{f.name}</span>
+                  <span className="font-mono text-xs font-bold text-emerald-700 shrink-0">
+                    {f.count} ({f.pct}%)
+                  </span>
+                </div>
+                <div className="w-full h-1.5 rounded-full bg-slate-200 overflow-hidden">
+                  <div
+                    className="h-full bg-emerald-500 rounded-full transition-all duration-500"
+                    style={{ width: `${Math.max(f.pct, f.count > 0 ? 3 : 0)}%` }}
+                  />
+                </div>
               </div>
-              <div className="w-full h-2 rounded-full bg-slate-100 overflow-hidden">
-                <div className="h-full bg-amber-500 rounded-full" style={{ width: '15%' }} />
-              </div>
-            </div>
+            ))}
+          </div>
+        </div>
 
-            <div>
-              <div className="flex items-center justify-between font-bold text-slate-700 mb-1">
-                <span>Ifetedo Law Campus</span>
-                <span>10%</span>
-              </div>
-              <div className="w-full h-2 rounded-full bg-slate-100 overflow-hidden">
-                <div className="h-full bg-purple-500 rounded-full" style={{ width: '10%' }} />
-              </div>
-            </div>
+        {/* Academic Level & Departments */}
+        <div className="space-y-6">
+          {/* Level Distribution */}
+          <div className="p-6 rounded-3xl bg-white border border-slate-200 shadow-xs space-y-4">
+            <h3 className="font-bold text-slate-900 text-sm sm:text-base flex items-center gap-2">
+              <BookOpen className="w-4 h-4 text-amber-600" />
+              Student Academic Levels
+            </h3>
 
-            <div>
-              <div className="flex items-center justify-between font-bold text-slate-700 mb-1">
-                <span>Ejigbo & Ipetu-Ijesha Campuses</span>
-                <span>5%</span>
-              </div>
-              <div className="w-full h-2 rounded-full bg-slate-100 overflow-hidden">
-                <div className="h-full bg-rose-500 rounded-full" style={{ width: '5%' }} />
-              </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              {levelStats.map((l) => (
+                <div key={l.level} className="p-3 rounded-2xl bg-slate-50 border border-slate-200/70 text-center">
+                  <div className="text-base font-black text-slate-900">{l.count}</div>
+                  <div className="text-xs font-bold text-slate-600">{l.level}</div>
+                  <div className="text-[10px] text-slate-400 mt-0.5">{l.pct}% of students</div>
+                </div>
+              ))}
             </div>
+          </div>
+
+          {/* Active Departments */}
+          <div className="p-6 rounded-3xl bg-white border border-slate-200 shadow-xs space-y-3">
+            <h3 className="font-bold text-slate-900 text-sm sm:text-base flex items-center gap-2">
+              <Users className="w-4 h-4 text-indigo-600" />
+              Top Active Student Departments
+            </h3>
+            {topDepartments.length === 0 ? (
+              <p className="text-xs text-slate-400 py-4 text-center">No active student department data recorded yet.</p>
+            ) : (
+              <div className="divide-y divide-slate-100 max-h-48 overflow-y-auto pr-1">
+                {topDepartments.map((dept) => (
+                  <div key={dept.name} className="py-2 flex items-center justify-between text-xs">
+                    <div>
+                      <div className="font-bold text-slate-800">{dept.name}</div>
+                      {dept.facultyName && <div className="text-[10px] text-slate-400 truncate max-w-xs">{dept.facultyName}</div>}
+                    </div>
+                    <span className="px-2.5 py-1 rounded-xl bg-indigo-50 text-indigo-700 font-mono font-bold text-xs">
+                      {dept.count} {dept.count === 1 ? 'student' : 'students'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>

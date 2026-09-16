@@ -1,6 +1,6 @@
 {
-  "name": "CampusPlug",
-  "description": "The complete campus digital ecosystem for students: Campus Study & StudyGen AI academic assistant, student marketplace with escrow, campus hostels, gigs & services, jobs, event ticketing, and student communities.",
+  "name": "CampusCore",
+  "description": "The complete campus digital ecosystem for students: StudyGen AI academic workspace, student marketplace with escrow, campus hostels, gigs & services, jobs, event ticketing, and student communities.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

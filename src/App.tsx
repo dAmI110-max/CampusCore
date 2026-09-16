@@ -252,7 +252,7 @@ const MainApp: React.FC = () => {
       <main className="flex-1 pb-20 md:pb-0">
         <ErrorBoundary
           fallbackTitle="Navigation / View Error"
-          fallbackDescription="CampusPlug encountered a rendering issue while loading this view. You can safely retry or return home."
+          fallbackDescription="CampusCore encountered a rendering issue while loading this view. You can safely retry or return home."
           onReset={() => setCurrentView('home')}
         >
           <AnimatePresence mode="wait">
@@ -879,7 +879,7 @@ const MainApp: React.FC = () => {
 
 export default function App() {
   return (
-    <ErrorBoundary fallbackTitle="CampusPlug is loading..." fallbackDescription="If you are on an iPhone or Safari browser, tap Reload Page below to refresh your session.">
+    <ErrorBoundary fallbackTitle="CampusCore is loading..." fallbackDescription="If you are on an iPhone or Safari browser, tap Reload Page below to refresh your session.">
       <ThemeProvider>
         <ToastProvider>
           <AuthProvider>

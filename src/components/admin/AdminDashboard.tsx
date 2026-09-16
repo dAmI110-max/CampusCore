@@ -235,7 +235,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   };
 
   const handleDeleteProduct = async (productId: string) => {
-    if (window.confirm('Admin Action: Permanently delete this listing from CampusPlug?')) {
+    if (window.confirm('Admin Action: Permanently delete this listing from CampusCore?')) {
       if (isSupabaseConfigured()) {
         await SupabaseService.deleteListing(productId);
       }
@@ -297,7 +297,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           <div>
             <div className="flex items-center gap-2">
               <span className="px-2.5 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/30 text-xs font-bold uppercase tracking-wider flex items-center gap-1">
-                <ShieldAlert className="w-3.5 h-3.5" /> CampusPlug Control Center
+                <ShieldAlert className="w-3.5 h-3.5" /> CampusCore Control Center
               </span>
               {isSuperAdmin && (
                 <span className="px-2.5 py-0.5 rounded-full bg-amber-400/20 text-amber-300 border border-amber-400/30 text-xs font-black uppercase tracking-wider flex items-center gap-1">
@@ -968,7 +968,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   required
                 />
               </div>
-              <span className="text-[11px] text-slate-400 mt-1 block">CampusPlug Ace Tech student support address</span>
+              <span className="text-[11px] text-slate-400 mt-1 block">CampusCore Ace Tech student support address</span>
             </div>
 
             <div>

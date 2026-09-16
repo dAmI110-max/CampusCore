@@ -108,7 +108,7 @@ export const StudyResources: React.FC<StudyResourcesProps> = ({
   const handleShare = (resource: StudyResource) => {
     if (navigator.clipboard) {
       navigator.clipboard.writeText(
-        `Check out this study resource on CampusPlug: ${resource.courseCode} - ${resource.title}`
+        `Check out this study resource on CampusCore: ${resource.courseCode} - ${resource.title}`
       );
       success('Resource details copied to clipboard!');
     }

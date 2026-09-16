@@ -121,7 +121,7 @@ export const SubscriptionPlansModal: React.FC<SubscriptionPlansModalProps> = ({
               <Crown className="w-4 h-4" />
             </div>
             <div>
-              <h2 className="font-black text-slate-900 text-base">CampusPlug Pro Subscriptions</h2>
+              <h2 className="font-black text-slate-900 text-base">CampusCore Pro Subscriptions</h2>
               <p className="text-[11px] text-slate-500">Accelerate your campus business and freelance revenue</p>
             </div>
           </div>

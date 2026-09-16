@@ -298,7 +298,7 @@ export const BusinessesView: React.FC<BusinessesViewProps> = ({
           {myBusinesses.length === 0 ? (
             <EmptyState
               title="You haven't registered a business yet"
-              description="Create a branded storefront on CampusPlug to accept orders and promote to students."
+              description="Create a branded storefront on CampusCore to accept orders and promote to students."
               actionLabel="Register Store Now"
               onAction={() => setCreateBusinessOpen(true)}
             />

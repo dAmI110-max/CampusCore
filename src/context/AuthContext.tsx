@@ -208,12 +208,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         universityName: 'Osun State University',
         campusId: 'campus-osogbo',
         campusName: 'Osogbo Main Campus',
-        facultyId: 'fac-eng',
-        facultyName: 'Faculty of Engineering',
-        departmentId: 'dept-mech',
-        departmentName: 'Mechanical Engineering',
+        facultyId: 'fac-computing',
+        facultyName: 'Faculty of Computing and Information Technology (FOCIT)',
+        departmentId: 'dept-comp-cs',
+        departmentName: 'Computer Science',
         level: 'Postgraduate',
-        bio: 'Founder & Super Administrator of CampusPlug by Ace Tech.',
+        bio: 'Founder & Super Administrator of CampusCore by Ace Tech.',
         phone: '+2348012345678',
         whatsapp: '2348012345678',
         showPhonePublicly: true,
@@ -230,7 +230,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     if (user.accountStatus === 'suspended' || user.accountStatus === 'banned' || user.accountStatus === 'SUSPENDED') {
       setIsLoading(false);
-      return { success: false, message: 'This account has been suspended by CampusPlug safety moderation.' };
+      return { success: false, message: 'This account has been suspended by CampusCore safety moderation.' };
     }
 
     // Ensure Super Admin privileges if email matches
@@ -286,13 +286,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         universityName: 'Osun State University',
         campusId: 'campus-osogbo',
         campusName: 'Osogbo Main Campus',
-        facultyId: 'fac-eng',
-        facultyName: 'Faculty of Engineering',
-        departmentId: 'dept-mech',
-        departmentName: 'Mechanical Engineering',
+        facultyId: 'fac-computing',
+        facultyName: 'Faculty of Computing and Information Technology (FOCIT)',
+        departmentId: 'dept-comp-cs',
+        departmentName: 'Computer Science',
         level: '300L',
         bio: isSuperAdminEmail
-          ? 'Founder & Super Administrator of CampusPlug by Ace Tech.'
+          ? 'Founder & Super Administrator of CampusCore by Ace Tech.'
           : 'Student at Osun State University connected via Google.',
         phone: isSuperAdminEmail ? '+2348012345678' : undefined,
         whatsapp: isSuperAdminEmail ? '2348012345678' : undefined,
@@ -316,7 +316,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     if (user.accountStatus === 'suspended' || user.accountStatus === 'banned') {
       setIsLoading(false);
-      return { success: false, message: 'This Google account has been suspended by CampusPlug safety moderation.' };
+      return { success: false, message: 'This Google account has been suspended by CampusCore safety moderation.' };
     }
 
     StorageService.setCurrentUser(user.id);
@@ -439,7 +439,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       departmentId: data.departmentId,
       departmentName: selectedDept?.name,
       level: data.level || '100L',
-      bio: data.bio || 'Student on CampusPlug.',
+      bio: data.bio || 'Student on CampusCore.',
       phone: data.phone,
       whatsapp: data.whatsapp || (data.phone ? data.phone.replace(/[^0-9]/g, '') : undefined),
       telegram: data.telegram,
@@ -453,7 +453,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     StorageService.createNotification({
       userId: newUser.id,
-      title: 'Welcome to CampusPlug!',
+      title: 'Welcome to CampusCore!',
       message: `Welcome ${newUser.fullName}! You are registered under ${newUser.universityName} (${newUser.campusName}).`,
       type: 'system_announcement',
     });
@@ -495,7 +495,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     // 1. Supabase update if configured
     if (isSupabaseConfigured()) {
-      await SupabaseService.updateProfile(currentUser.id, updates);
+      const supaRes = await SupabaseService.updateProfile(currentUser.id, updates);
+      if (!supaRes.success) {
+        return {
+          success: false,
+          message: supaRes.message || 'Unable to update your profile. Please try again.',
+        };
+      }
+      if (supaRes.user) {
+        updates = { ...updates, ...supaRes.user };
+      }
     }
 
     // 2. Local update

@@ -227,7 +227,7 @@ export const NotificationsModal: React.FC<NotificationsModalProps> = ({
 
           {/* Footer */}
           <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
-            <span>Powered by CampusPlug Security Engine</span>
+            <span>Powered by CampusCore Security Engine</span>
             <button
               onClick={onClose}
               className="px-4 py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl"

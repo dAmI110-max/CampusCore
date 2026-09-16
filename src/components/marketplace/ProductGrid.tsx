@@ -36,7 +36,7 @@ export const ProductGrid: React.FC<ProductGridProps> = ({
       <EmptyState
         type="products"
         title="No products available yet"
-        description="New products will appear here as students start selling on CampusPlug."
+        description="New products will appear here as students start selling on CampusCore."
         actionText="Be the first seller to list yours."
         onAction={onStartSelling || onResetFilters}
       />

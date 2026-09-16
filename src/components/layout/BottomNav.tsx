@@ -69,7 +69,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
           }}
           className={`flex-1 flex flex-col items-center justify-center py-1 min-h-[44px] touch-manipulation transition-colors ${
             currentView === 'home'
-              ? 'text-indigo-600 dark:text-indigo-400 font-bold'
+              ? 'text-purple-600 dark:text-purple-400 font-bold'
               : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100'
           }`}
           aria-label="Home"
@@ -86,7 +86,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
           }}
           className={`flex-1 flex flex-col items-center justify-center py-1 min-h-[44px] touch-manipulation transition-colors ${
             isExploreActive
-              ? 'text-amber-500 font-bold'
+              ? 'text-purple-600 dark:text-purple-400 font-bold'
               : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100'
           }`}
           aria-label="Marketplace"
@@ -99,7 +99,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
         <div className="flex-1 flex justify-center -mt-5">
           <button
             onClick={handlePostClick}
-            className="w-12 h-12 rounded-full bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white flex items-center justify-center shadow-lg shadow-indigo-600/40 border-2 border-white dark:border-slate-900 transition-all touch-manipulation cursor-pointer"
+            className="w-12 h-12 rounded-full bg-purple-600 hover:bg-purple-700 active:scale-95 text-white flex items-center justify-center shadow-lg shadow-purple-600/40 border-2 border-white dark:border-slate-900 transition-all touch-manipulation cursor-pointer"
             aria-label="Post or Sell item"
           >
             <Plus className="w-6 h-6 stroke-[2.8]" />
@@ -137,7 +137,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
             }}
             className={`flex-1 flex flex-col items-center justify-center py-1 min-h-[44px] touch-manipulation relative transition-colors ${
               currentView === 'messages'
-                ? 'text-indigo-600 dark:text-indigo-400 font-bold'
+                ? 'text-purple-600 dark:text-purple-400 font-bold'
                 : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100'
             }`}
             aria-label="Messages"
@@ -145,7 +145,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
             <div className="relative">
               <MessageCircle className={`w-5 h-5 ${currentView === 'messages' ? 'stroke-[2.5]' : 'stroke-2'}`} />
               {unreadMessagesCount > 0 && (
-                <span className="absolute -top-1 -right-2 px-1.5 py-0.2 text-[9px] font-black bg-indigo-600 text-white rounded-full">
+                <span className="absolute -top-1 -right-2 px-1.5 py-0.2 text-[9px] font-black bg-purple-600 text-white rounded-full">
                   {unreadMessagesCount}
                 </span>
               )}
@@ -155,7 +155,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
         ) : (
           <button
             onClick={() => onOpenAuth('login')}
-            className="flex-1 flex flex-col items-center justify-center py-1 min-h-[44px] touch-manipulation text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
+            className="flex-1 flex flex-col items-center justify-center py-1 min-h-[44px] touch-manipulation text-slate-500 dark:text-slate-400 hover:text-purple-600 dark:hover:text-purple-400 transition-colors"
             aria-label="Sign In"
           >
             <User className="w-5 h-5 stroke-2" />

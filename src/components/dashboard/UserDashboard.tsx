@@ -312,7 +312,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
                   <ul className="space-y-2 text-emerald-900/80 dark:text-emerald-300/80 text-[11px] list-disc list-inside">
                     <li>Always meet in public campus zones (SUB, Cafeteria, Campus Gate).</li>
                     <li>Inspect all gadgets thoroughly before transferring payment.</li>
-                    <li>CampusPlug will never ask for your account password or BVN.</li>
+                    <li>CampusCore will never ask for your account password or BVN.</li>
                     <li>Report suspicious accounts or scam attempts immediately to support.</li>
                   </ul>
                   <div className="pt-2 text-[10px] text-emerald-800/80 dark:text-emerald-400/80 font-medium">

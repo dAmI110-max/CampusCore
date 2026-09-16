@@ -16,7 +16,7 @@ import {
   TrendingUp,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { CampusPlugLogo } from '../common/CampusPlugLogo';
+import { CampusCoreLogo } from '../common/CampusCoreLogo';
 
 interface SellerOnboardingModalProps {
   isOpen: boolean;
@@ -86,7 +86,7 @@ export const SellerOnboardingModal: React.FC<SellerOnboardingModalProps> = ({
       });
 
       if (res.success) {
-        success('Welcome to the CampusPlug Seller Network! You can now publish listings.');
+        success('Welcome to the CampusCore Seller Network! You can now publish listings.');
         onSuccess();
         onClose();
       } else {
@@ -112,7 +112,7 @@ export const SellerOnboardingModal: React.FC<SellerOnboardingModalProps> = ({
           className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 w-full max-w-xl overflow-hidden flex flex-col max-h-[90vh] text-slate-900 dark:text-slate-100"
         >
           {/* Header */}
-          <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white p-6 relative shrink-0">
+          <div className="bg-gradient-to-r from-[#120721] via-[#230d42] to-[#120721] text-white p-6 relative shrink-0">
             <button
               onClick={onClose}
               className="absolute top-5 right-5 p-2 text-slate-400 hover:text-white rounded-full hover:bg-white/10 transition-colors cursor-pointer"
@@ -121,7 +121,7 @@ export const SellerOnboardingModal: React.FC<SellerOnboardingModalProps> = ({
             </button>
 
             <div className="flex items-center gap-2 mb-3">
-              <CampusPlugLogo variant="compact" theme="dark" size="sm" />
+              <CampusCoreLogo variant="compact" theme="dark" size="sm" />
             </div>
 
             <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight flex items-center gap-2">
@@ -207,7 +207,7 @@ export const SellerOnboardingModal: React.FC<SellerOnboardingModalProps> = ({
 
                 <div className="p-4 rounded-2xl bg-slate-900 dark:bg-slate-950 text-white space-y-2 border border-slate-800">
                   <div className="flex items-center gap-2 text-amber-400 text-xs font-bold">
-                    <TrendingUp className="w-4 h-4" /> Why sell on CampusPlug?
+                    <TrendingUp className="w-4 h-4" /> Why sell on CampusCore?
                   </div>
                   <ul className="text-xs text-slate-300 space-y-1 list-disc list-inside">
                     <li>Direct access to thousands of verified UNIOSUN campus buyers</li>
@@ -297,7 +297,7 @@ export const SellerOnboardingModal: React.FC<SellerOnboardingModalProps> = ({
                 <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/50 space-y-2">
                   <div className="flex items-center gap-2 font-bold text-amber-900 dark:text-amber-300 text-sm">
                     <Lock className="w-4 h-4 text-amber-600 dark:text-amber-400" />
-                    CampusPlug Escrow & Safety Pledge
+                    CampusCore Escrow & Safety Pledge
                   </div>
                   <p className="text-xs text-amber-900/90 dark:text-amber-200 leading-relaxed">
                     By activating your seller account, you agree to:

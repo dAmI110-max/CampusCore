@@ -29,7 +29,7 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
   }
 
   public override componentDidCatch(error: Error, errorInfo: React.ErrorInfo): void {
-    console.error('CampusPlug Component Error Caught by ErrorBoundary:', error, errorInfo);
+    console.error('CampusCore Component Error Caught by ErrorBoundary:', error, errorInfo);
     this.setState({ error, errorInfo });
   }
 

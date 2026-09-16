@@ -135,7 +135,7 @@ export const BusinessDetailModal: React.FC<BusinessDetailModalProps> = ({
               <a
                 href={`https://wa.me/${business.whatsapp.replace(/[^0-9]/g, '')}?text=Hi%20${encodeURIComponent(
                   business.businessName
-                )},%20I%20found%20your%20store%20on%20CampusPlug.`}
+                )},%20I%20found%20your%20store%20on%20CampusCore.`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-md"

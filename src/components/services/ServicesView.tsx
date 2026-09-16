@@ -342,7 +342,7 @@ export const ServicesView: React.FC<ServicesViewProps> = ({
               Service Requests & Escrow Orders ({serviceRequests.length})
             </h2>
             <span className="text-xs text-slate-500">
-              Auto-tracked under CampusPlug Escrow Protocol
+              Auto-tracked under CampusCore Escrow Protocol
             </span>
           </div>
 

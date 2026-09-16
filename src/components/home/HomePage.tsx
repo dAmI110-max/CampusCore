@@ -170,7 +170,7 @@ export const HomePage: React.FC<HomePageProps> = ({
             </div>
             <button
               onClick={onExploreMarketplace}
-              className="text-xs sm:text-sm font-bold text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 flex items-center gap-1 group cursor-pointer"
+              className="text-xs sm:text-sm font-bold text-purple-600 dark:text-purple-400 hover:text-purple-800 dark:hover:text-purple-300 flex items-center gap-1 group cursor-pointer"
             >
               See All <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
             </button>
@@ -194,7 +194,7 @@ export const HomePage: React.FC<HomePageProps> = ({
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between mb-6">
             <div>
-              <div className="flex items-center gap-1.5 text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider mb-1">
+              <div className="flex items-center gap-1.5 text-xs font-bold text-purple-600 dark:text-purple-400 uppercase tracking-wider mb-1">
                 <ShoppingBag className="w-3.5 h-3.5" /> Just Listed
               </div>
               <h2 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white">
@@ -203,7 +203,7 @@ export const HomePage: React.FC<HomePageProps> = ({
             </div>
             <button
               onClick={onExploreMarketplace}
-              className="text-xs sm:text-sm font-bold text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 flex items-center gap-1 group cursor-pointer"
+              className="text-xs sm:text-sm font-bold text-purple-600 dark:text-purple-400 hover:text-purple-800 dark:hover:text-purple-300 flex items-center gap-1 group cursor-pointer"
             >
               Explore All <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
             </button>
@@ -222,16 +222,16 @@ export const HomePage: React.FC<HomePageProps> = ({
             </div>
           ) : (
             <div className="text-center py-12 px-4 rounded-3xl bg-slate-50 dark:bg-slate-800/40 border border-dashed border-slate-200 dark:border-slate-800">
-              <div className="w-12 h-12 rounded-2xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 mx-auto flex items-center justify-center mb-3">
+              <div className="w-12 h-12 rounded-2xl bg-purple-50 dark:bg-purple-950/60 text-purple-600 dark:text-purple-400 mx-auto flex items-center justify-center mb-3">
                 <ShoppingBag className="w-6 h-6" />
               </div>
               <h3 className="text-base font-bold text-slate-900 dark:text-white">No products available yet</h3>
               <p className="text-sm text-slate-500 dark:text-slate-400 mt-1 max-w-md mx-auto">
-                New products will appear here as students start selling on CampusPlug.
+                New products will appear here as students start selling on CampusCore.
               </p>
               <button
                 onClick={onOpenCreateProduct}
-                className="mt-4 inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm transition-colors shadow-sm cursor-pointer"
+                className="mt-4 inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-semibold text-sm transition-colors shadow-sm cursor-pointer"
               >
                 <Sparkles className="w-4 h-4" /> Be the first seller to list yours.
               </button>
@@ -245,7 +245,7 @@ export const HomePage: React.FC<HomePageProps> = ({
         <section className="py-12 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between mb-6">
             <div>
-              <div className="flex items-center gap-1.5 text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider mb-1">
+              <div className="flex items-center gap-1.5 text-xs font-bold text-purple-600 dark:text-purple-400 uppercase tracking-wider mb-1">
                 <Home className="w-3.5 h-3.5" /> Off-Campus Accommodation
               </div>
               <h2 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white">
@@ -254,7 +254,7 @@ export const HomePage: React.FC<HomePageProps> = ({
             </div>
             <button
               onClick={onExploreAccommodation}
-              className="text-xs sm:text-sm font-bold text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 flex items-center gap-1 group cursor-pointer"
+              className="text-xs sm:text-sm font-bold text-purple-600 dark:text-purple-400 hover:text-purple-800 dark:hover:text-purple-300 flex items-center gap-1 group cursor-pointer"
             >
               View All Lodges <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
             </button>
@@ -272,7 +272,7 @@ export const HomePage: React.FC<HomePageProps> = ({
         </section>
       )}
 
-      {/* 7. How CampusPlug Works */}
+      {/* 7. How CampusCore Works */}
       <HowItWorks
         onOpenCreateProduct={onOpenCreateProduct}
         onExploreMarketplace={onExploreMarketplace}

@@ -251,7 +251,7 @@ export class StorageService {
     }
 
     // Dynamic one-time migration & demo data purge (checked via version flag to prevent infinite loops)
-    const MIGRATION_VERSION = 'v8_purge_prototype_users_empty_marketplace_v8';
+    const MIGRATION_VERSION = 'v9_uniosun_complete_faculties_and_departments';
     const currentMigration = safeGetRaw('campusplug_migration_ver');
 
     if (currentMigration !== MIGRATION_VERSION) {
@@ -282,6 +282,22 @@ export class StorageService {
             u.email?.toLowerCase() === this.SECONDARY_SUPER_ADMIN_EMAIL.toLowerCase() ||
             u.role === 'SUPER_ADMIN';
           return isSuperAdmin || (!prototypeIds.has(u.id) && !u.id.startsWith('usr-tunde'));
+        }).map((u) => {
+          // Correct any legacy default Mechanical Engineering on admin accounts to Computing
+          if (
+            (u.email?.toLowerCase() === this.SUPER_ADMIN_EMAIL.toLowerCase() ||
+              u.email?.toLowerCase() === this.SECONDARY_SUPER_ADMIN_EMAIL.toLowerCase()) &&
+            (u.departmentName === 'Mechanical Engineering' || u.facultyId === 'fac-eng')
+          ) {
+            return {
+              ...u,
+              facultyId: 'fac-computing',
+              facultyName: 'Faculty of Computing and Information Technology (FOCIT)',
+              departmentId: 'dept-comp-cs',
+              departmentName: 'Computer Science',
+            };
+          }
+          return u;
         });
 
         // Ensure Damilare and Dave are present and have 0 products
@@ -370,9 +386,9 @@ export class StorageService {
         }
         setItem(STORAGE_KEYS.ADMIN_USERS, cleanAdmins);
 
-        safeSetRaw('campusplug_migration_ver', MIGRATION_VERSION);
+        safeSetRaw('campuscore_migration_ver', MIGRATION_VERSION);
       } catch (err) {
-        console.warn('CampusPlug Migration Warning:', err);
+        console.warn('CampusCore Migration Warning:', err);
       }
     }
   }
@@ -752,7 +768,7 @@ export class StorageService {
     this.createNotification({
       userId: targetUserId,
       title: 'Administrator Privileges Granted',
-      message: `You have been appointed as an Administrator on CampusPlug by Ace Tech. Access the Admin Console from your menu.`,
+      message: `You have been appointed as an Administrator on CampusCore by Ace Tech. Access the Admin Console from your menu.`,
       type: 'system_announcement',
     });
 
@@ -1019,7 +1035,7 @@ export class StorageService {
     this.createNotification({
       userId: newProduct.sellerId,
       title: 'Listing Published Successfully',
-      message: `Your item "${newProduct.title}" is now active in the UNIOSUN CampusPlug marketplace.`,
+      message: `Your item "${newProduct.title}" is now active in the UNIOSUN CampusCore marketplace.`,
       type: 'listing_published',
       link: `/marketplace/${newProduct.slug}`,
     });
@@ -1448,7 +1464,7 @@ export class StorageService {
     this.createNotification({
       userId,
       title: 'Wallet Funded Successfully',
-      message: `₦${amount.toLocaleString()} has been credited to your CampusPlug wallet. Ref: ${reference}`,
+      message: `₦${amount.toLocaleString()} has been credited to your CampusCore wallet. Ref: ${reference}`,
       type: 'deposit_success',
       link: '/wallet',
     });
@@ -1744,7 +1760,7 @@ export class StorageService {
     this.sendMessage(
       conv.id,
       buyerId,
-      `Hello ${seller.fullName}! I have secured Order #${orderNumber} (${product.title}) with CampusPlug Escrow. Please arrange meetup/delivery at ${deliveryInfo.location}, ${deliveryInfo.campus}.`
+      `Hello ${seller.fullName}! I have secured Order #${orderNumber} (${product.title}) with CampusCore Escrow. Please arrange meetup/delivery at ${deliveryInfo.location}, ${deliveryInfo.campus}.`
     );
 
     // Audit Log
@@ -1761,7 +1777,7 @@ export class StorageService {
     this.createNotification({
       userId: product.sellerId,
       title: 'New Paid Order (Escrow Secured)',
-      message: `You received a new order #${orderNumber} for "${product.title}" from ${buyer.fullName}. Funds are safely held in CampusPlug Escrow!`,
+      message: `You received a new order #${orderNumber} for "${product.title}" from ${buyer.fullName}. Funds are safely held in CampusCore Escrow!`,
       type: 'escrow_held',
       link: `/orders/${orderId}`,
     });
@@ -1797,7 +1813,7 @@ export class StorageService {
     this.createNotification({
       userId: order.buyerId,
       title: 'Item Ready for Inspection & Confirmation',
-      message: `${order.sellerName} has delivered "${order.productTitle}". Please inspect the item and click "Confirm Receipt" on CampusPlug to release payment.`,
+      message: `${order.sellerName} has delivered "${order.productTitle}". Please inspect the item and click "Confirm Receipt" on CampusCore to release payment.`,
       type: 'escrow_released',
       link: `/orders/${orderId}`,
     });
@@ -2002,7 +2018,7 @@ export class StorageService {
     this.createNotification({
       userId: targetUserId,
       title: 'Dispute Raised for Order',
-      message: `A dispute has been raised on Order #${order.orderNumber}. CampusPlug Admin is reviewing evidence.`,
+      message: `A dispute has been raised on Order #${order.orderNumber}. CampusCore Admin is reviewing evidence.`,
       type: 'dispute_opened',
       link: `/orders/${orderId}`,
     });
@@ -2805,7 +2821,7 @@ export class StorageService {
         stage: 'Account Registered',
         count: totalAccounts,
         percentage: 100,
-        description: 'Verified student accounts on CampusPlug',
+        description: 'Verified student accounts on CampusCore',
       },
       {
         stage: 'Explored Selling',
@@ -3545,7 +3561,7 @@ export class StorageService {
     );
 
     if (!ticket) {
-      return { success: false, message: 'Invalid ticket code. No matching registration found on CampusPlug.' };
+      return { success: false, message: 'Invalid ticket code. No matching registration found on CampusCore.' };
     }
 
     if (ticket.status === 'used') {
@@ -4344,7 +4360,7 @@ export class StorageService {
       return {
         success: false,
         status: 'not_found',
-        message: 'Invalid ticket code. No matching registration found on CampusPlug.',
+        message: 'Invalid ticket code. No matching registration found on CampusCore.',
       };
     }
 

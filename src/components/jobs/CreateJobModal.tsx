@@ -41,7 +41,7 @@ export const CreateJobModal: React.FC<CreateJobModalProps> = ({
   );
   const [requirementsInput, setRequirementsInput] = useState('300L+ Student, Good academic standing, Laptop required');
   const [description, setDescription] = useState('');
-  const [applicationInstructions, setApplicationInstructions] = useState('Please apply directly through CampusPlug with your CV.');
+  const [applicationInstructions, setApplicationInstructions] = useState('Please apply directly through CampusCore with your CV.');
   const [submitting, setSubmitting] = useState(false);
 
   if (!isOpen || !currentUser) return null;

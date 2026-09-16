@@ -72,7 +72,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
           iconBg: 'bg-pink-50 border-pink-100',
           btnBg: 'bg-pink-600 hover:bg-pink-700 shadow-pink-600/20',
           title: title || 'No upcoming campus events found',
-          description: description || 'Be the first department or club executive to publish an event ticket on CampusPlug.',
+          description: description || 'Be the first department or club executive to publish an event ticket on CampusCore.',
           actionText: effectiveActionText || 'Host an Event',
         };
       case 'study':
@@ -109,7 +109,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
           iconBg: 'bg-indigo-50 border-indigo-100',
           btnBg: 'bg-indigo-600 hover:bg-indigo-700 text-white font-bold shadow-indigo-600/20',
           title: title || 'No products available yet',
-          description: description || 'New products will appear here as students start selling on CampusPlug.',
+          description: description || 'New products will appear here as students start selling on CampusCore.',
           actionText: effectiveActionText || 'Be the first seller to list yours.',
         };
     }

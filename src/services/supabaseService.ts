@@ -48,7 +48,7 @@ export class SupabaseService {
 
       const { data, error } = await supabase.auth.signUp({
         email: payload.email.trim().toLowerCase(),
-        password: payload.password || `CampusPlug_${Math.random().toString(36).slice(-8)}!`,
+        password: payload.password || `CampusCore_${Math.random().toString(36).slice(-8)}!`,
         options: {
           data: {
             full_name: payload.fullName.trim(),
@@ -97,7 +97,7 @@ export class SupabaseService {
         level: payload.level || '100L',
         phone: payload.phone,
         whatsapp: payload.whatsapp,
-        bio: isSuper ? 'Founder & Super Administrator of CampusPlug.' : 'Student at Osun State University.',
+        bio: isSuper ? 'Founder & Super Administrator of CampusCore.' : 'Student at Osun State University.',
         verification_badge: isSuper ? 'trusted_seller' : 'unverified',
         account_status: 'active',
         created_at: new Date().toISOString(),
@@ -191,7 +191,7 @@ export class SupabaseService {
           level: meta.level || '100L',
           phone: meta.phone,
           whatsapp: meta.whatsapp,
-          bio: isSuper ? 'Founder & Super Administrator of CampusPlug.' : 'Student at Osun State University.',
+          bio: isSuper ? 'Founder & Super Administrator of CampusCore.' : 'Student at Osun State University.',
           verification_badge: isSuper ? 'trusted_seller' : 'unverified',
           account_status: 'active',
           created_at: new Date().toISOString(),
@@ -207,8 +207,8 @@ export class SupabaseService {
       if (profile && (statusLower === 'banned' || statusLower === 'suspended' || statusLower === 'restricted')) {
         await supabase.auth.signOut();
         const reasonMsg = statusLower === 'banned'
-          ? 'Your CampusPlug account has been banned by safety moderation. Please contact support at cplugsupport@gmail.com if you believe this was a mistake.'
-          : 'Your CampusPlug account is currently suspended. Please contact support at cplugsupport@gmail.com.';
+          ? 'Your CampusCore account has been banned by safety moderation. Please contact support at support@campuscore.app if you believe this was a mistake.'
+          : 'Your CampusCore account is currently suspended. Please contact support at support@campuscore.app.';
         return { success: false, message: reasonMsg };
       }
 
@@ -740,7 +740,7 @@ export class SupabaseService {
         },
       });
 
-      return { success: true, message: `${targetProfile.full_name} (@${targetProfile.username || 'user'}) has been banned from CampusPlug.` };
+      return { success: true, message: `${targetProfile.full_name} (@${targetProfile.username || 'user'}) has been banned from CampusCore.` };
     } catch (err: any) {
       return { success: false, message: err.message || 'Failed to ban user' };
     }
@@ -1288,7 +1288,7 @@ export class SupabaseService {
       departmentId: db.department_id,
       departmentName: db.department_name,
       level: db.level || '100L',
-      bio: db.bio || 'Student on CampusPlug',
+      bio: db.bio || 'Student on CampusCore',
       phone: db.phone,
       whatsapp: db.whatsapp,
       telegram: db.telegram,

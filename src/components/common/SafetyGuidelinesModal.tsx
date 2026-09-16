@@ -30,7 +30,7 @@ export const SafetyGuidelinesModal: React.FC<SafetyGuidelinesModalProps> = ({ on
           </div>
           <div>
             <h3 className="text-xl font-black text-slate-900 dark:text-white">Campus Safety Guidelines</h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">CampusPlug Student Safety & Trust Framework</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">CampusCore Student Safety & Trust Framework</p>
           </div>
         </div>
 

@@ -28,7 +28,7 @@ export const AccommodationCard: React.FC<AccommodationCardProps> = ({
     e.stopPropagation();
     const cleanNum = accommodation.ownerWhatsapp.replace(/[^0-9]/g, '');
     const msg = encodeURIComponent(
-      `Hello, I saw your accommodation listing "${accommodation.title}" on CampusPlug UNIOSUN (₦${accommodation.price.toLocaleString()} ${accommodation.rentalPeriod}) and I'd like to schedule an inspection.`
+      `Hello, I saw your accommodation listing "${accommodation.title}" on CampusCore UNIOSUN (₦${accommodation.price.toLocaleString()} ${accommodation.rentalPeriod}) and I'd like to schedule an inspection.`
     );
     window.open(`https://wa.me/${cleanNum}?text=${msg}`, '_blank');
   };

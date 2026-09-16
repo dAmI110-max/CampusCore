@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { UserProfile, Campus, Faculty, Department, Category } from '../../types';
 import { StorageService } from '../../services/storageService';
 import { useAuth } from '../../context/AuthContext';
@@ -53,11 +53,25 @@ export const ProfileSettingsTab: React.FC<ProfileSettingsTabProps> = ({
   const [whatsapp, setWhatsapp] = useState(user.whatsapp || '');
   const [telegram, setTelegram] = useState(user.telegram || '');
   const [campusId, setCampusId] = useState(user.campusId || (campuses[0]?.id || 'campus-osogbo'));
-  const [facultyId, setFacultyId] = useState(user.facultyId || (faculties[0]?.id || 'fac-eng'));
-  const [departmentId, setDepartmentId] = useState(user.departmentId || 'dept-mech');
+  const [facultyId, setFacultyId] = useState(user.facultyId || (faculties[0]?.id || 'fac-computing'));
+  const [departmentId, setDepartmentId] = useState(user.departmentId || 'dept-comp-cs');
   const [level, setLevel] = useState(user.level || '300L');
   const [bio, setBio] = useState(user.bio || '');
   const [avatarUrl, setAvatarUrl] = useState(user.avatarUrl || PRESET_AVATARS[0]);
+
+  // Sync user prop updates
+  useEffect(() => {
+    if (user.facultyId) setFacultyId(user.facultyId);
+    if (user.departmentId) setDepartmentId(user.departmentId);
+    if (user.fullName) setFullName(user.fullName);
+    if (user.phone) setPhone(user.phone);
+    if (user.whatsapp) setWhatsapp(user.whatsapp || user.phone || '');
+    if (user.telegram) setTelegram(user.telegram || '');
+    if (user.campusId) setCampusId(user.campusId);
+    if (user.level) setLevel(user.level);
+    if (user.bio) setBio(user.bio);
+    if (user.avatarUrl) setAvatarUrl(user.avatarUrl);
+  }, [user]);
 
   // Seller-specific State
   const [sellerBio, setSellerBio] = useState(user.sellerBio || user.bio || '');
@@ -78,6 +92,13 @@ export const ProfileSettingsTab: React.FC<ProfileSettingsTabProps> = ({
   const [imageError, setImageError] = useState<string | null>(null);
 
   const departments: Department[] = StorageService.getDepartments(facultyId);
+
+  // Ensure department is always valid for the chosen faculty
+  useEffect(() => {
+    if (departments.length > 0 && !departments.some((d) => d.id === departmentId)) {
+      setDepartmentId(departments[0].id);
+    }
+  }, [facultyId, departments, departmentId]);
 
   // Handle Photo File Upload
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {

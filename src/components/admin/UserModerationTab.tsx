@@ -44,6 +44,97 @@ export const UserModerationTab: React.FC<UserModerationTabProps> = ({ onRefresh 
   const [showModal, setShowModal] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
+  // Academic Profile Correction Modal state
+  const [editAcademicUser, setEditAcademicUser] = useState<UserProfile | null>(null);
+  const [editCampusId, setEditCampusId] = useState('campus-osogbo');
+  const [editFacultyId, setEditFacultyId] = useState('fac-computing');
+  const [editDepartmentId, setEditDepartmentId] = useState('dept-comp-cs');
+  const [editLevel, setEditLevel] = useState('100L');
+  const [isSavingAcademic, setIsSavingAcademic] = useState(false);
+
+  const handleOpenAcademicModal = (u: UserProfile) => {
+    setEditAcademicUser(u);
+    setEditCampusId(u.campusId || 'campus-osogbo');
+    const targetFac = u.facultyId || 'fac-computing';
+    setEditFacultyId(targetFac);
+    const availableDepts = StorageService.getDepartments(targetFac);
+    const validDeptId = u.departmentId && availableDepts.some((d) => d.id === u.departmentId)
+      ? u.departmentId
+      : (availableDepts[0]?.id || 'dept-comp-cs');
+    setEditDepartmentId(validDeptId);
+    setEditLevel(u.level || '100L');
+  };
+
+  const handleFacultySelectChange = (newFacId: string) => {
+    setEditFacultyId(newFacId);
+    const depts = StorageService.getDepartments(newFacId);
+    if (depts.length > 0) {
+      setEditDepartmentId(depts[0].id);
+    }
+  };
+
+  const handleSaveAcademicProfile = async () => {
+    if (!editAcademicUser || !currentUser) return;
+    setIsSavingAcademic(true);
+
+    const allCampuses = StorageService.getCampuses();
+    const allFaculties = StorageService.getFaculties();
+    const allDepts = StorageService.getDepartments(editFacultyId);
+
+    const campusObj = allCampuses.find((c) => c.id === editCampusId);
+    const facultyObj = allFaculties.find((f) => f.id === editFacultyId);
+    const deptObj = allDepts.find((d) => d.id === editDepartmentId);
+
+    const updates: Partial<UserProfile> = {
+      campusId: editCampusId,
+      campusName: campusObj?.name || editAcademicUser.campusName,
+      facultyId: editFacultyId,
+      facultyName: facultyObj?.name || editAcademicUser.facultyName,
+      departmentId: editDepartmentId,
+      departmentName: deptObj?.name || editAcademicUser.departmentName,
+      level: editLevel as any,
+    };
+
+    try {
+      if (isSupabaseConfigured()) {
+        const supaRes = await SupabaseService.updateProfile(editAcademicUser.id, updates);
+        if (!supaRes.success) {
+          showError(supaRes.message || 'Failed to update academic profile in database.');
+          setIsSavingAcademic(false);
+          return;
+        }
+
+        await SupabaseService.createAuditLog({
+          actorId: currentUser.id,
+          actorName: currentUser.fullName,
+          action: 'user_academic_profile_corrected',
+          entityType: 'user',
+          entityId: editAcademicUser.id,
+          metadata: {
+            adminEmail: currentUser.email,
+            targetEmail: editAcademicUser.email,
+            previous: {
+              facultyName: editAcademicUser.facultyName,
+              departmentName: editAcademicUser.departmentName,
+              level: editAcademicUser.level,
+            },
+            updated: updates,
+          },
+        });
+      }
+
+      StorageService.updateUser(editAcademicUser.id, updates);
+      success(`Academic profile for ${editAcademicUser.fullName} updated.`);
+      setEditAcademicUser(null);
+      await fetchLiveUsers();
+      onRefresh();
+    } catch (err: any) {
+      showError(err.message || 'Failed to correct academic profile');
+    } finally {
+      setIsSavingAcademic(false);
+    }
+  };
+
   const fetchLiveUsers = useCallback(async () => {
     setIsLoading(true);
     try {
@@ -276,7 +367,7 @@ export const UserModerationTab: React.FC<UserModerationTabProps> = ({ onRefresh 
                   <td colSpan={6} className="py-12 text-center text-slate-400">
                     <UserX className="w-8 h-8 mx-auto text-slate-300 mb-2" />
                     <p className="font-semibold text-slate-600">No registered students found</p>
-                    <p className="text-[11px] text-slate-400 mt-0.5">Students who register on CampusPlug will appear here in real time.</p>
+                    <p className="text-[11px] text-slate-400 mt-0.5">Students who register on CampusCore will appear here in real time.</p>
                   </td>
                 </tr>
               ) : (
@@ -330,7 +421,10 @@ export const UserModerationTab: React.FC<UserModerationTabProps> = ({ onRefresh 
 
                       <td className="py-3.5 px-4 text-slate-600">
                         <div className="font-semibold">{u.departmentName || 'General Studies'}</div>
-                        <div className="text-[10px] text-slate-400">{u.level || '100L'}</div>
+                        <div className="text-[10px] text-slate-400">
+                          {u.facultyName ? <span className="font-medium text-slate-500">{u.facultyName} • </span> : null}
+                          <span className="font-bold text-indigo-600">{u.level || '100L'}</span>
+                        </div>
                       </td>
 
                       <td className="py-3.5 px-4">
@@ -353,19 +447,27 @@ export const UserModerationTab: React.FC<UserModerationTabProps> = ({ onRefresh 
                       </td>
 
                       <td className="py-3.5 px-4 text-right">
-                        {!isSuper && (
-                          <div className="flex items-center justify-end gap-1.5">
-                            {u.accountStatus === 'active' ? (
+                        <div className="flex items-center justify-end gap-1.5 flex-wrap">
+                          <button
+                            onClick={() => handleOpenAcademicModal(u)}
+                            className="px-2.5 py-1 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-[10px] transition-colors flex items-center gap-1 border border-indigo-200 cursor-pointer"
+                            title="Edit Faculty, Department, Level"
+                          >
+                            <GraduationCap className="w-3 h-3 text-indigo-600" /> Academic
+                          </button>
+
+                          {!isSuper && (
+                            u.accountStatus === 'active' ? (
                               <>
                                 <button
                                   onClick={() => handleOpenActionModal(u, 'suspend')}
-                                  className="px-2.5 py-1 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 font-bold text-[10px] transition-colors flex items-center gap-1 border border-amber-200"
+                                  className="px-2.5 py-1 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 font-bold text-[10px] transition-colors flex items-center gap-1 border border-amber-200 cursor-pointer"
                                 >
                                   <AlertTriangle className="w-3 h-3 text-amber-600" /> Suspend
                                 </button>
                                 <button
                                   onClick={() => handleOpenActionModal(u, 'ban')}
-                                  className="px-2.5 py-1 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-[10px] transition-colors flex items-center gap-1 border border-rose-200"
+                                  className="px-2.5 py-1 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-[10px] transition-colors flex items-center gap-1 border border-rose-200 cursor-pointer"
                                 >
                                   <Ban className="w-3 h-3 text-rose-600" /> Ban
                                 </button>
@@ -373,13 +475,13 @@ export const UserModerationTab: React.FC<UserModerationTabProps> = ({ onRefresh 
                             ) : (
                               <button
                                 onClick={() => handleReactivate(u)}
-                                className="px-2.5 py-1 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold text-[10px] transition-colors flex items-center gap-1 border border-emerald-200"
+                                className="px-2.5 py-1 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold text-[10px] transition-colors flex items-center gap-1 border border-emerald-200 cursor-pointer"
                               >
-                                <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Reactivate Account
+                                <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Reactivate
                               </button>
-                            )}
-                          </div>
-                        )}
+                            )
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );
@@ -404,7 +506,7 @@ export const UserModerationTab: React.FC<UserModerationTabProps> = ({ onRefresh 
               </div>
               <div>
                 <h3 className="font-bold text-sm text-slate-900">
-                  {modalAction === 'ban' ? 'Ban Student from CampusPlug' : 'Suspend Student Account'}
+                  {modalAction === 'ban' ? 'Ban Student from CampusCore' : 'Suspend Student Account'}
                 </h3>
                 <p className="text-xs text-slate-500 font-mono">{selectedUser.fullName} ({selectedUser.email})</p>
               </div>
@@ -465,6 +567,124 @@ export const UserModerationTab: React.FC<UserModerationTabProps> = ({ onRefresh 
                 }`}
               >
                 {isLoading ? 'Updating Supabase...' : modalAction === 'ban' ? 'Confirm Ban' : 'Confirm Suspension'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Academic Profile Correction Modal */}
+      {editAcademicUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+          <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-lg overflow-hidden p-6 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold shrink-0">
+                <GraduationCap className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="font-bold text-sm text-slate-900">
+                  Correct Academic Profile
+                </h3>
+                <p className="text-xs text-slate-500 font-mono">
+                  {editAcademicUser.fullName} ({editAcademicUser.email})
+                </p>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-500">
+              Super Admin profile correction updates the student's official university record and logs the modification with an administrative audit trail.
+            </p>
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                  Campus
+                </label>
+                <select
+                  value={editCampusId}
+                  onChange={(e) => setEditCampusId(e.target.value)}
+                  className="w-full text-xs p-2.5 rounded-2xl border border-slate-200 font-semibold focus:ring-2 focus:ring-indigo-500"
+                >
+                  {StorageService.getCampuses().map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name} ({c.location || 'Campus'})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                  Faculty / College
+                </label>
+                <select
+                  value={editFacultyId}
+                  onChange={(e) => handleFacultySelectChange(e.target.value)}
+                  className="w-full text-xs p-2.5 rounded-2xl border border-slate-200 font-semibold focus:ring-2 focus:ring-indigo-500"
+                >
+                  {StorageService.getFaculties().map((f) => (
+                    <option key={f.id} value={f.id}>
+                      {f.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                  Department / Programme
+                </label>
+                <select
+                  value={editDepartmentId}
+                  onChange={(e) => setEditDepartmentId(e.target.value)}
+                  className="w-full text-xs p-2.5 rounded-2xl border border-slate-200 font-semibold focus:ring-2 focus:ring-indigo-500"
+                >
+                  {StorageService.getDepartments(editFacultyId).map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                  Academic Level
+                </label>
+                <select
+                  value={editLevel}
+                  onChange={(e) => setEditLevel(e.target.value)}
+                  className="w-full text-xs p-2.5 rounded-2xl border border-slate-200 font-semibold focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value="100L">100L (Freshman)</option>
+                  <option value="200L">200L (Sophomore)</option>
+                  <option value="300L">300L (Penultimate / Junior)</option>
+                  <option value="400L">400L (Senior / Final)</option>
+                  <option value="500L">500L (Final Year Professional)</option>
+                  <option value="Postgraduate">Postgraduate</option>
+                </select>
+              </div>
+
+              <div className="p-3 rounded-2xl bg-indigo-50 border border-indigo-200 text-indigo-900 text-[11px] leading-relaxed">
+                <strong>Audit Compliance:</strong> This administrative correction is immediately persisted to both Supabase and local storage, and recorded with your admin user ID in the security audit log.
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setEditAcademicUser(null)}
+                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveAcademicProfile}
+                disabled={isSavingAcademic}
+                className="px-5 py-2 rounded-xl text-white text-xs font-bold bg-indigo-600 hover:bg-indigo-700 shadow-md shadow-indigo-600/30 transition-all cursor-pointer"
+              >
+                {isSavingAcademic ? 'Saving & Logging...' : 'Save Academic Profile'}
               </button>
             </div>
           </div>

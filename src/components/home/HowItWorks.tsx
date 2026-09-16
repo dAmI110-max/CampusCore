@@ -38,16 +38,16 @@ export const HowItWorks: React.FC<HowItWorksProps> = ({
   ];
 
   return (
-    <section className="py-16 bg-slate-50 border-t border-slate-200">
+    <section className="py-16 bg-slate-50 dark:bg-slate-950 border-t border-slate-200 dark:border-purple-950/50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center max-w-2xl mx-auto mb-12">
-          <span className="text-xs font-bold text-indigo-600 uppercase tracking-widest bg-indigo-50 px-3.5 py-1.5 rounded-full border border-indigo-100">
+          <span className="text-xs font-bold text-purple-700 dark:text-purple-300 uppercase tracking-widest bg-purple-50 dark:bg-purple-950/60 px-3.5 py-1.5 rounded-full border border-purple-200 dark:border-purple-900/60">
             Simple, Safe & Direct
           </span>
-          <h2 className="text-2xl sm:text-3xl font-black text-slate-900 mt-3">
-            How CampusPlug Works for UNIOSUN
+          <h2 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white mt-3">
+            How CampusCore Works for UNIOSUN
           </h2>
-          <p className="text-xs sm:text-sm text-slate-500 mt-2 font-medium">
+          <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-2 font-medium">
             Designed specifically for student life, trade, and accommodation across all Osun State University campuses.
           </p>
         </div>
@@ -59,20 +59,20 @@ export const HowItWorks: React.FC<HowItWorksProps> = ({
             return (
               <div
                 key={idx}
-                className="bg-white rounded-[28px] p-6 sm:p-7 border border-slate-200 hover:border-indigo-300 hover:shadow-md transition-all duration-300 flex flex-col justify-between relative group"
+                className="bg-white dark:bg-slate-900/90 rounded-[28px] p-6 sm:p-7 border border-slate-200 dark:border-slate-800 hover:border-purple-400 dark:hover:border-purple-500 hover:shadow-md transition-all duration-300 flex flex-col justify-between relative group"
               >
                 <div>
                   <div className="flex items-center justify-between mb-4">
-                    <div className="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white flex items-center justify-center transition-colors shadow-2xs">
+                    <div className="w-12 h-12 rounded-2xl bg-purple-50 dark:bg-purple-950/60 text-purple-600 dark:text-purple-400 group-hover:bg-purple-600 group-hover:text-white flex items-center justify-center transition-colors shadow-2xs">
                       <Icon className="w-6 h-6" />
                     </div>
-                    <span className="text-2xl font-black text-slate-200 group-hover:text-indigo-600 transition-colors">
+                    <span className="text-2xl font-black text-slate-200 dark:text-slate-800 group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors">
                       {step.number}
                     </span>
                   </div>
 
-                  <h3 className="text-base font-bold text-slate-900 mb-2">{step.title}</h3>
-                  <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">{step.description}</p>
+                  <h3 className="text-base font-bold text-slate-900 dark:text-white mb-2">{step.title}</h3>
+                  <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 leading-relaxed">{step.description}</p>
                 </div>
               </div>
             );
@@ -80,10 +80,10 @@ export const HowItWorks: React.FC<HowItWorksProps> = ({
         </div>
 
         {/* Bento CTA Bar */}
-        <div className="mt-10 bg-gradient-to-r from-indigo-950 via-slate-900 to-indigo-900 rounded-[32px] p-6 sm:p-8 text-white flex flex-col sm:flex-row items-center justify-between gap-6 shadow-xl border border-indigo-800/30">
+        <div className="mt-10 bg-gradient-to-r from-[#1b0a33] via-[#120724] to-[#250d44] rounded-[32px] p-6 sm:p-8 text-white flex flex-col sm:flex-row items-center justify-between gap-6 shadow-xl border border-purple-800/40">
           <div>
             <h3 className="text-xl sm:text-2xl font-black">Have things you no longer use?</h3>
-            <p className="text-xs sm:text-sm text-indigo-200 mt-1 font-medium">
+            <p className="text-xs sm:text-sm text-purple-200 mt-1 font-medium">
               Turn your old textbooks, gadgets, and hostels into quick cash or bookings right on campus.
             </p>
           </div>
@@ -97,7 +97,7 @@ export const HowItWorks: React.FC<HowItWorksProps> = ({
             </button>
             <button
               onClick={onOpenCreateProduct}
-              className="px-6 py-3 bg-indigo-500 hover:bg-indigo-400 text-white font-black text-xs sm:text-sm rounded-2xl shadow-lg shadow-indigo-500/25 transition-all active:scale-95 flex items-center gap-1.5 cursor-pointer"
+              className="px-6 py-3 bg-purple-600 hover:bg-purple-500 text-white font-black text-xs sm:text-sm rounded-2xl shadow-lg shadow-purple-600/30 transition-all active:scale-95 flex items-center gap-1.5 cursor-pointer"
             >
               <span>Sell An Item</span>
               <ArrowRight className="w-4 h-4" />

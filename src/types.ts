@@ -586,8 +586,8 @@ export interface AuditLog {
 }
 
 export interface PlatformSettings {
-  supportEmail: string; // 'cplugsupport@gmail.com'
-  platformName: string; // 'CampusPlug'
+  supportEmail: string; // 'support@campuscore.app'
+  platformName: string; // 'CampusCore'
   maintenanceMode: boolean;
   maintenanceMessage?: string;
   marketplaceCommissionPercent: number; // default 2.5%

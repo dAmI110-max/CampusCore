@@ -124,7 +124,7 @@ export const OrdersView: React.FC<OrdersViewProps> = ({
       );
       setIsProcessing(false);
       if (res.success) {
-        success('Dispute opened. CampusPlug moderation has frozen funds and is reviewing.');
+        success('Dispute opened. CampusCore moderation has frozen funds and is reviewing.');
         setShowDisputeModal(null);
         setDisputeDescription('');
       } else {
@@ -245,7 +245,7 @@ export const OrdersView: React.FC<OrdersViewProps> = ({
           <ShieldCheck className="w-4 h-4" />
         </div>
         <div>
-          <span className="font-extrabold block text-sm mb-0.5">How CampusPlug Safe Orders Protect You:</span>
+          <span className="font-extrabold block text-sm mb-0.5">How CampusCore Safe Orders Protect You:</span>
           <span className="leading-relaxed">
             When an order is created, meetup locations and order details are registered. Meet in safe, verified campus spots to inspect the product, test functions, and confirm the transaction directly with fellow verified students.
           </span>
@@ -595,7 +595,7 @@ export const OrdersView: React.FC<OrdersViewProps> = ({
                   <textarea
                     value={disputeDescription}
                     onChange={(e) => setDisputeDescription(e.target.value)}
-                    placeholder="Provide details about the issue. CampusPlug moderators will examine this to assist."
+                    placeholder="Provide details about the issue. CampusCore moderators will examine this to assist."
                     rows={4}
                     className="w-full px-3.5 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:border-indigo-500 placeholder:text-slate-400"
                     required
@@ -603,7 +603,7 @@ export const OrdersView: React.FC<OrdersViewProps> = ({
                 </div>
 
                 <div className="p-3 bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-800 rounded-2xl text-xs text-rose-900 dark:text-rose-200">
-                  Submitting a dispute flags the order for CampusPlug student community moderators to review and mediate.
+                  Submitting a dispute flags the order for CampusCore student community moderators to review and mediate.
                 </div>
 
                 <button

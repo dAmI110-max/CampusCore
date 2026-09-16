@@ -99,7 +99,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
     const whatsappNum = product.sellerWhatsapp || (product.sellerPhone ? product.sellerPhone.replace(/[^0-9]/g, '') : '');
     const cleanNum = whatsappNum.startsWith('0') ? '234' + whatsappNum.substring(1) : whatsappNum;
     const msg = encodeURIComponent(
-      `Hello, I found your "${product.title}" on CampusPlug UNIOSUN Marketplace (₦${product.price.toLocaleString()}) and I'm interested. Is it still available?`
+      `Hello, I found your "${product.title}" on CampusCore UNIOSUN Marketplace (₦${product.price.toLocaleString()}) and I'm interested. Is it still available?`
     );
     return `https://wa.me/${cleanNum}?text=${msg}`;
   };
@@ -221,7 +221,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                   <ShieldCheck className="w-4 h-4 text-indigo-600 dark:text-indigo-400" /> Campus Safety & Verified Students
                 </div>
                 <p className="text-[11px] leading-relaxed text-indigo-900/80 dark:text-indigo-300/80">
-                  CampusPlug protects both buyers and sellers. Inspect goods in campus safe zones before finalizing payment.
+                  CampusCore protects both buyers and sellers. Inspect goods in campus safe zones before finalizing payment.
                 </p>
               </div>
 

@@ -134,7 +134,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
                 rows={4}
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                placeholder="Describe why this listing or user violates CampusPlug safety standards (e.g. asked for advance fee, fake item, wrong campus location)..."
+                placeholder="Describe why this listing or user violates CampusCore safety standards (e.g. asked for advance fee, fake item, wrong campus location)..."
                 className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 placeholder:text-slate-400 resize-none"
               />
             </div>
