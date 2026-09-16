@@ -180,7 +180,7 @@ export const ExploreView: React.FC<ExploreViewProps> = ({
             </span>
           </div>
           <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
-            Explore CampusPlug
+            Explore CampusCore
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 mt-1 max-w-2xl">
             Everything you need for student life — trade items safely, discover verified lodges, hire student skills, apply for gigs, and attend campus events.
@@ -192,8 +192,8 @@ export const ExploreView: React.FC<ExploreViewProps> = ({
             onClick={onOpenSearch}
             className="self-start sm:self-auto px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-2xl font-bold text-xs shadow-xs transition-all flex items-center gap-2 cursor-pointer"
           >
-            <Search className="w-4 h-4 text-indigo-400" />
-            <span>Search All CampusPlug</span>
+            <Search className="w-4 h-4 text-purple-400" />
+            <span>Search All CampusCore</span>
           </button>
         )}
       </div>
@@ -211,7 +211,7 @@ export const ExploreView: React.FC<ExploreViewProps> = ({
             One Unified Platform for All 6 UNIOSUN Campuses
           </h2>
           <p className="text-slate-300 text-xs sm:text-sm leading-relaxed">
-            From buying your first textbook in Osogbo to finding a lodge in Ikire or booking a barber in Okuku, CampusPlug connects university students securely with Escrow Buyer Protection.
+            From buying your first textbook in Osogbo to finding a lodge in Ikire or booking a barber in Okuku, CampusCore connects university students securely with Escrow Buyer Protection.
           </p>
           <div className="flex flex-wrap items-center gap-4 pt-2 text-xs text-slate-300">
             <div className="flex items-center gap-1.5">

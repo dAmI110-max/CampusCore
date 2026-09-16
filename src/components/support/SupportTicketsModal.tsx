@@ -118,7 +118,7 @@ export const SupportTicketsModal: React.FC<SupportTicketsModalProps> = ({
               <LifeBuoy className="w-4 h-4" />
             </div>
             <div>
-              <h2 className="font-black text-slate-900 text-base">CampusPlug Help & Support Hub</h2>
+              <h2 className="font-black text-slate-900 text-base">CampusCore Help & Support Hub</h2>
               <p className="text-[11px] text-slate-500">24/7 Escrow Disputes & Campus Inquiries</p>
             </div>
           </div>

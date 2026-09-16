@@ -17,7 +17,7 @@ export const AboutModal: React.FC<AboutModalProps> = ({ isOpen, onClose }) => {
           initial={{ opacity: 0, scale: 0.95, y: 15 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 15 }}
-          className="bg-white rounded-3xl max-w-2xl w-full p-6 sm:p-8 shadow-2xl border border-slate-200 relative my-6 overflow-hidden max-h-[90vh] flex flex-col"
+          className="bg-white dark:bg-slate-900 rounded-3xl max-w-2xl w-full p-6 sm:p-8 shadow-2xl border border-slate-200 dark:border-purple-900/40 relative my-6 overflow-hidden max-h-[90vh] flex flex-col"
         >
           {/* Header */}
           <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-purple-900/30 shrink-0">
@@ -159,7 +159,6 @@ export const AboutModal: React.FC<AboutModalProps> = ({ isOpen, onClose }) => {
             >
               Close
             </button>
-          </div>
           </div>
         </motion.div>
       </div>

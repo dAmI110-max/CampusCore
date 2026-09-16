@@ -30,7 +30,7 @@ const QUICK_CAMPUS_PROMPTS = [
   'Is this still available?',
   'Let us meet at SUB building for inspection.',
   'Can you do a slight discount for a student?',
-  'I have just paid with Escrow on CampusPlug.',
+  'I have just paid with Escrow on CampusCore.',
   'Are you on Osogbo campus today?',
 ];
 
@@ -107,9 +107,9 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
     <div className="max-w-6xl mx-auto py-6 px-4 sm:px-6">
       {/* Header */}
       <div className="mb-6">
-        <div className="flex items-center gap-2 text-indigo-600 text-xs font-bold uppercase tracking-wider mb-1">
+        <div className="flex items-center gap-2 text-purple-600 dark:text-purple-400 text-xs font-bold uppercase tracking-wider mb-1">
           <MessageCircle className="w-4 h-4" />
-          CampusPlug Instant Messenger
+          CampusCore Instant Messenger
         </div>
         <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">Direct Student Messages</h1>
         <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
@@ -395,7 +395,7 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
               <MessageCircle className="w-12 h-12 text-slate-300 mb-3" />
               <h3 className="font-extrabold text-base text-slate-700">Select a conversation</h3>
               <p className="text-xs text-slate-500 max-w-sm mt-1">
-                Choose a conversation from the left to read messages and reply safely on CampusPlug.
+                Choose a conversation from the left to read messages and reply safely on CampusCore.
               </p>
             </div>
           )}

@@ -106,7 +106,7 @@ export const VerificationModal: React.FC<VerificationModalProps> = ({ onClose, o
                   <span className="font-extrabold block text-sm">Verification Under Review</span>
                   <span>
                     Your documents submitted on{' '}
-                    {new Date(existingRequest.submittedAt).toLocaleDateString('en-NG')} are currently being reviewed by the CampusPlug safety team.
+                    {new Date(existingRequest.submittedAt).toLocaleDateString('en-NG')} are currently being reviewed by the CampusCore safety team.
                   </span>
                 </div>
               </div>

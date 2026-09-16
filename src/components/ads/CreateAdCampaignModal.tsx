@@ -102,7 +102,7 @@ export const CreateAdCampaignModal: React.FC<CreateAdCampaignModalProps> = ({
               <Megaphone className="w-4 h-4" />
             </div>
             <div>
-              <h2 className="font-black text-slate-900 text-base">Promote with CampusPlug Ads</h2>
+              <h2 className="font-black text-slate-900 text-base">Promote with CampusCore Ads</h2>
               <p className="text-[11px] text-slate-500">Reach 10,000+ active students on campus</p>
             </div>
           </div>
