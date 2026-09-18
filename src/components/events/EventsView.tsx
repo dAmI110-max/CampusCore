@@ -76,7 +76,7 @@ export const EventsView: React.FC<EventsViewProps> = ({ onBack, onOpenAuth, onOp
     const handleUpdate = () => loadData();
     window.addEventListener('campusplug_storage_update', handleUpdate);
     return () => window.removeEventListener('campusplug_storage_update', handleUpdate);
-  }, [selectedCategory, selectedCampus, pricingFilter, searchQuery, currentUser]);
+  }, [selectedCategory, selectedCampus, pricingFilter, searchQuery, currentUser?.id]);
 
   const handleBuyOrClaimTicket = (event: CampusEvent) => {
     if (!currentUser) {

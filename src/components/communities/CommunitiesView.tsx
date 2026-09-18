@@ -60,7 +60,7 @@ export const CommunitiesView: React.FC<CommunitiesViewProps> = ({ onBack, onOpen
     const handleUpdate = () => loadData();
     window.addEventListener('campusplug_storage_update', handleUpdate);
     return () => window.removeEventListener('campusplug_storage_update', handleUpdate);
-  }, [selectedCategory, selectedCampus, searchQuery, currentUser]);
+  }, [selectedCategory, selectedCampus, searchQuery, currentUser?.id]);
 
   const handleToggleJoin = (community: StudentCommunity) => {
     if (!currentUser) {

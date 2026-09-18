@@ -1,18 +1,41 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
-// Access environment variables safely with Vite
-const metaEnv = (import.meta as any).env || {};
-const supabaseUrl: string = metaEnv.VITE_SUPABASE_URL || '';
-const supabaseAnonKey: string = metaEnv.VITE_SUPABASE_ANON_KEY || '';
+// Access environment variables safely with Vite and common hosting providers (Vercel, Netlify)
+const metaEnv = ((import.meta as any).env || {}) as Record<string, string | undefined>;
+
+export const getSupabaseUrl = (): string => {
+  return (
+    metaEnv.VITE_SUPABASE_URL ||
+    metaEnv.SUPABASE_URL ||
+    metaEnv.NEXT_PUBLIC_SUPABASE_URL ||
+    (typeof window !== 'undefined' && (window as any).__ENV__?.VITE_SUPABASE_URL) ||
+    ''
+  ).trim();
+};
+
+export const getSupabaseAnonKey = (): string => {
+  return (
+    metaEnv.VITE_SUPABASE_ANON_KEY ||
+    metaEnv.VITE_SUPABASE_KEY ||
+    metaEnv.SUPABASE_ANON_KEY ||
+    metaEnv.SUPABASE_KEY ||
+    metaEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+    metaEnv.NEXT_PUBLIC_SUPABASE_KEY ||
+    (typeof window !== 'undefined' && (window as any).__ENV__?.VITE_SUPABASE_ANON_KEY) ||
+    ''
+  ).trim();
+};
 
 export const isSupabaseConfigured = (): boolean => {
+  const url = getSupabaseUrl();
+  const key = getSupabaseAnonKey();
   return Boolean(
-    supabaseUrl &&
-    supabaseAnonKey &&
-    supabaseUrl.startsWith('http') &&
-    supabaseAnonKey.length > 10 &&
-    !supabaseUrl.includes('placeholder') &&
-    !supabaseAnonKey.includes('placeholder')
+    url &&
+    key &&
+    url.startsWith('http') &&
+    key.length > 20 &&
+    !url.includes('placeholder') &&
+    !key.includes('placeholder')
   );
 };
 
@@ -24,7 +47,9 @@ export const getSupabase = (): SupabaseClient | null => {
     return null;
   }
   if (!supabaseInstance) {
-    supabaseInstance = createClient(supabaseUrl, supabaseAnonKey, {
+    const url = getSupabaseUrl();
+    const key = getSupabaseAnonKey();
+    supabaseInstance = createClient(url, key, {
       auth: {
         autoRefreshToken: true,
         persistSession: true,
@@ -36,15 +61,7 @@ export const getSupabase = (): SupabaseClient | null => {
 };
 
 // Export direct client or fallback
-export const supabase = isSupabaseConfigured()
-  ? createClient(supabaseUrl, supabaseAnonKey, {
-      auth: {
-        autoRefreshToken: true,
-        persistSession: true,
-        detectSessionInUrl: true,
-      },
-    })
-  : null;
+export const supabase = getSupabase();
 
 /**
  * Upload an image (avatar, product photo, accommodation) to Supabase Storage

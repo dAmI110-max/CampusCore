@@ -105,8 +105,12 @@ const MainApp: React.FC = () => {
 
   // Re-fetch reactive state from StorageService & Supabase
   useEffect(() => {
+    let updateTimer: number | undefined;
     const handleStorageUpdate = () => {
-      setRefreshKey((prev) => prev + 1);
+      if (updateTimer) window.clearTimeout(updateTimer);
+      updateTimer = window.setTimeout(() => {
+        setRefreshKey((prev) => prev + 1);
+      }, 100);
     };
     window.addEventListener('campusplug_storage_update', handleStorageUpdate);
 
@@ -130,6 +134,7 @@ const MainApp: React.FC = () => {
     });
 
     return () => {
+      if (updateTimer) window.clearTimeout(updateTimer);
       window.removeEventListener('campusplug_storage_update', handleStorageUpdate);
       unsubListings();
     };

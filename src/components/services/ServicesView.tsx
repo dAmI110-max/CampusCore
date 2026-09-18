@@ -107,7 +107,7 @@ export const ServicesView: React.FC<ServicesViewProps> = ({
     const handleUpdate = () => loadData();
     window.addEventListener('campusplug_storage_update', handleUpdate);
     return () => window.removeEventListener('campusplug_storage_update', handleUpdate);
-  }, [selectedCategory, selectedCampus, selectedPricingModel, selectedDeliveryMethod, searchQuery, currentUser]);
+  }, [selectedCategory, selectedCampus, selectedPricingModel, selectedDeliveryMethod, searchQuery, currentUser?.id]);
 
   const handleAcceptQuote = (req: ServiceRequest) => {
     const res = StorageService.acceptServiceQuote(req.id);

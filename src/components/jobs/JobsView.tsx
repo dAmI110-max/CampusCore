@@ -86,7 +86,7 @@ export const JobsView: React.FC<JobsViewProps> = ({
     const handleUpdate = () => loadData();
     window.addEventListener('campusplug_storage_update', handleUpdate);
     return () => window.removeEventListener('campusplug_storage_update', handleUpdate);
-  }, [selectedCategory, selectedType, selectedCampus, remoteOnly, searchQuery, currentUser]);
+  }, [selectedCategory, selectedType, selectedCampus, remoteOnly, searchQuery, currentUser?.id]);
 
   const myPostedJobs = jobs.filter((j) => j.posterId === currentUser?.id);
 

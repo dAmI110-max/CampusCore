@@ -19,14 +19,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   onClose,
   initialMode = 'login',
 }) => {
-  const { login, signup, googleLogin, savedAccounts, loginWithSavedAccount, removeSavedAccount, resetPassword } = useAuth();
+  const { login, signup, googleLogin, savedAccounts, removeSavedAccount, resetPassword, isSupabaseConnected } = useAuth();
   const { success, error } = useToast();
 
   const [mode, setMode] = useState<'login' | 'signup' | 'reset'>(initialMode);
   const [loading, setLoading] = useState(false);
-  const [showGooglePicker, setShowGooglePicker] = useState(false);
-  const [customGoogleEmail, setCustomGoogleEmail] = useState('');
-  const [customGoogleName, setCustomGoogleName] = useState('');
 
   // Login Form
   const [loginEmail, setLoginEmail] = useState('');
@@ -95,37 +92,33 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     }
   };
 
-  const handleGoogleSignIn = async (account?: { email: string; name?: string }) => {
+  const handleGoogleSignIn = async () => {
     setLoading(true);
-    const res = await googleLogin(account);
+    const res = await googleLogin();
     setLoading(false);
-    setShowGooglePicker(false);
 
     if (res.success) {
-      success(res.message || 'Signed in successfully with Google!');
-      onClose();
+      success(res.message || 'Connecting with Google...');
     } else {
       error(res.message || 'Google sign-in failed. Please try again.');
     }
   };
 
-  const handleSavedAccountClick = async (account: UserProfile) => {
-    setLoading(true);
-    const res = await loginWithSavedAccount(account.id);
-    setLoading(false);
-
-    if (res.success) {
-      success(`Signed in as ${account.fullName}`);
-      onClose();
-    } else {
-      error(res.message || 'Failed to sign in with saved account.');
-    }
+  const handleSavedAccountClick = (account: UserProfile) => {
+    setLoginEmail(account.email || account.username);
+    setMode('login');
+    success(`Selected ${account.fullName}. Please enter your password to sign in.`);
   };
 
   const handleSignupSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!fullName.trim() || !username.trim() || !signupEmail.trim()) {
       error('Please fill in your full name, username, and email.');
+      return;
+    }
+
+    if (!signupPassword || signupPassword.length < 6) {
+      error('Password must be at least 6 characters long.');
       return;
     }
 
@@ -156,8 +149,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     setLoading(false);
 
     if (res.success) {
-      success('Account created successfully! Welcome to UNIOSUN CampusCore.');
-      onClose();
+      if (res.requiresEmailConfirmation) {
+        success(res.message || 'Account created! Please check your email to confirm your address before logging in.');
+        setLoginEmail(signupEmail.trim());
+        setMode('login');
+      } else {
+        success('Account created successfully! Welcome to UNIOSUN CampusCore.');
+        onClose();
+      }
     } else {
       error(res.message || 'Signup failed. Please try again.');
     }
@@ -214,6 +213,18 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             </div>
           </div>
 
+          {!isSupabaseConnected && (
+            <div className="mb-4 p-3 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-300 text-xs">
+              <div className="font-bold flex items-center gap-1.5 mb-0.5">
+                <ShieldCheck className="w-4 h-4 text-amber-500 shrink-0" />
+                Supabase Environment Variables Required
+              </div>
+              <p className="text-[11px] leading-relaxed">
+                Supabase Auth is not connected. Add <code>VITE_SUPABASE_URL</code> and <code>VITE_SUPABASE_ANON_KEY</code> to your deployment environment variables to enable live authentication and user registration.
+              </p>
+            </div>
+          )}
+
           {/* Mode Switcher Tabs */}
           {mode !== 'reset' && (
             <div className="flex p-1 bg-slate-100 dark:bg-purple-950/40 rounded-2xl mb-5">
@@ -250,8 +261,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 <button
                   type="button"
                   disabled={loading}
-                  onClick={() => setShowGooglePicker(!showGooglePicker)}
-                  className="w-full py-2.5 px-4 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-750 text-slate-800 dark:text-slate-100 font-bold text-xs sm:text-sm flex items-center justify-center gap-3 transition-all shadow-xs hover:border-slate-300 dark:hover:border-slate-600 cursor-pointer"
+                  onClick={handleGoogleSignIn}
+                  className="w-full py-2.5 px-4 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-750 text-slate-800 dark:text-slate-100 font-bold text-xs sm:text-sm flex items-center justify-center gap-3 transition-all shadow-xs hover:border-slate-300 dark:hover:border-slate-600 cursor-pointer disabled:opacity-50"
                 >
                   <svg className="w-4 h-4" viewBox="0 0 24 24">
                     <path
@@ -273,83 +284,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   </svg>
                   <span>Continue with Google</span>
                 </button>
-
-                {/* Google Quick Account Selector Popup */}
-                {showGooglePicker && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -6 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="mt-2.5 p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700 space-y-2"
-                  >
-                    <div className="text-[11px] font-bold text-slate-500 dark:text-slate-400 px-1">
-                      Select Google Account to Sign In:
-                    </div>
-
-                    {/* Primary Verified Account (Dave Brown / Super Admin) */}
-                    <button
-                      type="button"
-                      onClick={() =>
-                        handleGoogleSignIn({
-                          email: 'davesbrown88@gmail.com',
-                          name: 'Dave Brown',
-                        })
-                      }
-                      className="w-full p-2 rounded-xl bg-white dark:bg-slate-700/80 hover:bg-indigo-50/70 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-600 flex items-center justify-between text-left transition-colors cursor-pointer"
-                    >
-                      <div className="flex items-center gap-2.5 truncate">
-                        <img
-                          src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=120&q=80"
-                          alt="Dave Brown"
-                          className="w-7 h-7 rounded-full object-cover shrink-0 border border-indigo-400/40"
-                        />
-                        <div className="truncate">
-                          <div className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1">
-                            Dave Brown
-                            <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-indigo-100 dark:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 font-black">
-                              Super Admin
-                            </span>
-                          </div>
-                          <div className="text-[10px] text-slate-500 dark:text-slate-400 truncate">
-                            davesbrown88@gmail.com
-                          </div>
-                        </div>
-                      </div>
-                      <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
-                    </button>
-
-                    {/* Or enter another Google email */}
-                    <div className="pt-2 border-t border-slate-200 dark:border-slate-700">
-                      <div className="text-[10px] font-medium text-slate-500 dark:text-slate-400 mb-1.5">
-                        Or use another Google Workspace account:
-                      </div>
-                      <div className="flex gap-1.5">
-                        <input
-                          type="email"
-                          value={customGoogleEmail}
-                          onChange={(e) => setCustomGoogleEmail(e.target.value)}
-                          placeholder="your.email@gmail.com"
-                          className="flex-1 px-2.5 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white placeholder:text-slate-400"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (!customGoogleEmail.trim()) {
-                              error('Please enter a valid Google email.');
-                              return;
-                            }
-                            handleGoogleSignIn({
-                              email: customGoogleEmail.trim(),
-                              name: customGoogleName.trim() || undefined,
-                            });
-                          }}
-                          className="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs cursor-pointer shrink-0"
-                        >
-                          Sign In
-                        </button>
-                      </div>
-                    </div>
-                  </motion.div>
-                )}
               </div>
 
               {/* OR Divider */}

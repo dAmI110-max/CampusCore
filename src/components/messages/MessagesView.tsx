@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { StorageService } from '../../services/storageService';
@@ -59,29 +59,42 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
     );
   }
 
-  const conversations = StorageService.getConversations(currentUser.id);
+  const conversations = useMemo(() => {
+    return StorageService.getConversations(currentUser.id);
+  }, [currentUser.id]);
 
-  // Auto select first conversation if none selected and desktop
+  const activeConversation = useMemo(() => {
+    return selectedConvId ? StorageService.getConversationById(selectedConvId) : null;
+  }, [selectedConvId]);
+
+  const messages = useMemo(() => {
+    return selectedConvId ? StorageService.getMessages(selectedConvId) : [];
+  }, [selectedConvId]);
+
+  // Auto select first conversation if none selected
   useEffect(() => {
     if (!selectedConvId && conversations.length > 0) {
       setSelectedConvId(conversations[0].id);
     }
-  }, [conversations, selectedConvId]);
+  }, [selectedConvId, conversations.length]);
 
-  // Mark as read when opening conversation
+  // Mark as read when opening conversation only if unread exists
   useEffect(() => {
-    if (selectedConvId && currentUser) {
-      StorageService.markConversationAsRead(selectedConvId, currentUser.id);
+    if (selectedConvId && currentUser?.id) {
+      const conv = StorageService.getConversationById(selectedConvId);
+      if (conv?.unreadCount && (conv.unreadCount[currentUser.id] || 0) > 0) {
+        StorageService.markConversationAsRead(selectedConvId, currentUser.id);
+      }
     }
-  }, [selectedConvId, currentUser]);
+  }, [selectedConvId, currentUser?.id]);
 
-  const activeConversation = selectedConvId ? StorageService.getConversationById(selectedConvId) : null;
-  const messages = selectedConvId ? StorageService.getMessages(selectedConvId) : [];
-
-  // Scroll to bottom when messages update
+  // Scroll to bottom only when message count changes
+  const lastMessageId = messages[messages.length - 1]?.id;
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+    if (lastMessageId) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [lastMessageId]);
 
   const handleSendMessage = (textToSend?: string) => {
     const text = textToSend || inputText;

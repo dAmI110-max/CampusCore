@@ -35,7 +35,7 @@ interface AuthContextType {
   googleLogin: (account?: { email: string; name?: string; avatarUrl?: string }) => Promise<{ success: boolean; message?: string }>;
   loginWithSavedAccount: (userId: string) => Promise<{ success: boolean; message?: string }>;
   removeSavedAccount: (userId: string) => void;
-  signup: (data: SignupData) => Promise<{ success: boolean; message?: string }>;
+  signup: (data: SignupData) => Promise<{ success: boolean; message?: string; requiresEmailConfirmation?: boolean }>;
   logout: () => Promise<void>;
   resetPassword: (email: string) => Promise<{ success: boolean; message?: string }>;
   updatePassword: (newPassword: string) => Promise<{ success: boolean; message?: string }>;
@@ -62,13 +62,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [savedAccounts, setSavedAccounts] = useState<UserProfile[]>([]);
   const isSupabaseConnected = isSupabaseConfigured();
 
-  const refreshUser = useCallback(() => {
-    StorageService.initialize();
-    const user = StorageService.getCurrentUser();
-    setCurrentUser(user);
-    setDemoUsers(StorageService.getUsers());
-    setSavedAccounts(StorageService.getSavedAccounts());
-    setIsLoading(false);
+  const refreshUser = useCallback(async () => {
+    const client = getSupabase();
+    if (client && isSupabaseConfigured()) {
+      try {
+        const { data: sessionData } = await client.auth.getSession();
+        if (sessionData?.session?.user) {
+          const profile = await SupabaseService.fetchProfile(sessionData.session.user.id);
+          if (profile) {
+            setCurrentUser(profile);
+            StorageService.updateUser(profile.id, profile);
+            StorageService.setCurrentUser(profile.id);
+            return;
+          }
+        }
+      } catch {
+        // ignore
+      }
+    }
+    setCurrentUser(null);
+    StorageService.setCurrentUser(null);
   }, []);
 
   // Initialize session & Supabase auth listener
@@ -79,30 +92,45 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const client = getSupabase();
       if (client && isSupabaseConfigured()) {
         try {
-          const { data: sessionData } = await client.auth.getSession();
+          const { data: sessionData, error: sessionError } = await client.auth.getSession();
+          if (sessionError) {
+            console.warn('Session check:', sessionError.message);
+          }
           if (sessionData?.session?.user && mounted) {
             const profile = await SupabaseService.fetchProfile(sessionData.session.user.id);
             if (profile) {
               if (profile.accountStatus === 'banned' || profile.accountStatus === 'suspended') {
                 await client.auth.signOut();
-                setCurrentUser(null);
-                StorageService.setCurrentUser(null);
-                setIsLoading(false);
+                if (mounted) {
+                  setCurrentUser(null);
+                  StorageService.setCurrentUser(null);
+                  setIsLoading(false);
+                }
                 return;
               }
-              setCurrentUser(profile);
-              StorageService.updateUser(profile.id, profile);
-              StorageService.setCurrentUser(profile.id);
+              if (mounted) {
+                setCurrentUser(profile);
+                StorageService.updateUser(profile.id, profile);
+                StorageService.setCurrentUser(profile.id);
+                setSavedAccounts(StorageService.getSavedAccounts());
+              }
             }
-          } else {
-            refreshUser();
+          } else if (mounted) {
+            setCurrentUser(null);
+            StorageService.setCurrentUser(null);
           }
-        } catch {
-          refreshUser();
+        } catch (err) {
+          console.error('Auth initialization error:', err);
+          if (mounted) {
+            setCurrentUser(null);
+            StorageService.setCurrentUser(null);
+          }
         }
-      } else {
-        refreshUser();
+      } else if (mounted) {
+        setCurrentUser(null);
+        StorageService.setCurrentUser(null);
       }
+
       if (mounted) {
         setIsLoading(false);
       }
@@ -120,7 +148,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         if (event === 'SIGNED_IN' && session?.user) {
           const profile = await SupabaseService.fetchProfile(session.user.id);
-          if (profile) {
+          if (profile && mounted) {
             if (profile.accountStatus === 'banned' || profile.accountStatus === 'suspended') {
               await client.auth.signOut();
               setCurrentUser(null);
@@ -130,13 +158,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             setCurrentUser(profile);
             StorageService.updateUser(profile.id, profile);
             StorageService.setCurrentUser(profile.id);
+            StorageService.addSavedAccount(profile);
+            setSavedAccounts(StorageService.getSavedAccounts());
           }
         } else if (event === 'SIGNED_OUT') {
-          setCurrentUser(null);
-          StorageService.setCurrentUser(null);
+          if (mounted) {
+            setCurrentUser(null);
+            StorageService.setCurrentUser(null);
+          }
         } else if (event === 'USER_UPDATED' && session?.user) {
           const profile = await SupabaseService.fetchProfile(session.user.id);
-          if (profile) {
+          if (profile && mounted) {
             if (profile.accountStatus === 'banned' || profile.accountStatus === 'suspended') {
               await client.auth.signOut();
               setCurrentUser(null);
@@ -144,15 +176,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               return;
             }
             setCurrentUser(profile);
+            StorageService.updateUser(profile.id, profile);
           }
         }
       });
       authSubscription = subscription;
     }
 
-    // Local storage event listener
-    const handleStorageUpdate = () => {
-      refreshUser();
+    // Local storage event listener - ONLY react if the current user ID was changed
+    const handleStorageUpdate = (e: any) => {
+      const key = e?.detail?.key;
+      if (key === 'campusplug_current_user_id_v1') {
+        refreshUser();
+      }
     };
 
     window.addEventListener('campusplug_storage_update', handleStorageUpdate);
@@ -168,194 +204,73 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const login = async (email: string, password?: string): Promise<{ success: boolean; message?: string }> => {
     setIsLoading(true);
 
-    // 1. Try Supabase Auth if configured
-    if (isSupabaseConfigured()) {
-      const res = await SupabaseService.signIn(email, password);
-      if (res.success && res.user) {
-        setCurrentUser(res.user);
-        StorageService.updateUser(res.user.id, res.user);
-        StorageService.setCurrentUser(res.user.id);
-        StorageService.addSavedAccount(res.user);
-        setSavedAccounts(StorageService.getSavedAccounts());
-        setIsLoading(false);
-        return { success: true };
-      } else if (!res.success && password) {
-        // If password was supplied to Supabase and failed, return error
-        setIsLoading(false);
-        return { success: false, message: res.message || 'Invalid email or password.' };
-      }
-    }
-
-    // 2. Fallback to storage users
-    await new Promise((resolve) => setTimeout(resolve, 250));
-    const users = StorageService.getUsers();
-    const clean = email.toLowerCase().trim();
-    let user = users.find((u) => u.email.toLowerCase() === clean || u.username.toLowerCase() === clean);
-
-    // Check if this is the super admin email logging in
-    const isSuperAdminEmail = clean === SUPER_ADMIN_EMAIL.toLowerCase() || clean === SECONDARY_ADMIN_EMAIL.toLowerCase();
-
-    if (!user && isSuperAdminEmail) {
-      user = StorageService.createUser({
-        fullName: clean.includes('damilare') ? 'Oluwadamilare Bhadmus' : 'Dave Brown',
-        username: clean.split('@')[0],
-        email: clean,
-        avatarUrl: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=200&q=80',
-        role: 'SUPER_ADMIN',
-        sellerStatus: 'VERIFIED_SELLER',
-        sellerOnboardingCompleted: true,
-        universityId: 'uni-uniosun',
-        universityName: 'Osun State University',
-        campusId: 'campus-osogbo',
-        campusName: 'Osogbo Main Campus',
-        facultyId: 'fac-computing',
-        facultyName: 'Faculty of Computing and Information Technology (FOCIT)',
-        departmentId: 'dept-comp-cs',
-        departmentName: 'Computer Science',
-        level: 'Postgraduate',
-        bio: 'Founder & Super Administrator of CampusCore by Ace Tech.',
-        phone: '+2348012345678',
-        whatsapp: '2348012345678',
-        showPhonePublicly: true,
-        showDepartmentPublicly: true,
-        verificationBadge: 'trusted_seller',
-        accountStatus: 'active',
-      });
-    }
-
-    if (!user) {
+    if (!isSupabaseConfigured()) {
       setIsLoading(false);
-      return { success: false, message: 'No account found with this email or username. Please check your credentials or create an account.' };
+      return {
+        success: false,
+        message: 'Supabase authentication is not configured. Please ensure VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are set in your deployment environment.',
+      };
     }
 
-    if (user.accountStatus === 'suspended' || user.accountStatus === 'banned' || user.accountStatus === 'SUSPENDED') {
+    if (!password) {
       setIsLoading(false);
-      return { success: false, message: 'This account has been suspended by CampusCore safety moderation.' };
+      return { success: false, message: 'Password is required to sign in.' };
     }
 
-    // Ensure Super Admin privileges if email matches
-    if (isSuperAdminEmail && user.role !== 'SUPER_ADMIN') {
-      const updated = StorageService.updateUser(user.id, {
-        role: 'SUPER_ADMIN',
-        sellerStatus: 'VERIFIED_SELLER',
-        sellerOnboardingCompleted: true,
-      });
-      if (updated) user = updated;
-    }
-
-    StorageService.setCurrentUser(user.id);
-    StorageService.addSavedAccount(user);
-    setCurrentUser(user);
-    setSavedAccounts(StorageService.getSavedAccounts());
+    const res = await SupabaseService.signIn(email, password);
     setIsLoading(false);
+
+    if (!res.success || !res.user) {
+      return {
+        success: false,
+        message: res.message || 'Invalid email or password. Please check your credentials.',
+      };
+    }
+
+    setCurrentUser(res.user);
+    StorageService.updateUser(res.user.id, res.user);
+    StorageService.setCurrentUser(res.user.id);
+    StorageService.addSavedAccount(res.user);
+    setSavedAccounts(StorageService.getSavedAccounts());
     return { success: true };
   };
 
-  const googleLogin = async (account?: {
-    email: string;
-    name?: string;
-    avatarUrl?: string;
-  }): Promise<{ success: boolean; message?: string }> => {
-    setIsLoading(true);
-    await new Promise((resolve) => setTimeout(resolve, 300));
+  const googleLogin = async (): Promise<{ success: boolean; message?: string }> => {
+    if (!isSupabaseConfigured()) {
+      return {
+        success: false,
+        message: 'Supabase authentication is not configured. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your environment variables.',
+      };
+    }
 
-    const targetEmail = (account?.email || 'davesbrown88@gmail.com').toLowerCase().trim();
-    const targetName = account?.name || (targetEmail.includes('damilare') ? 'Oluwadamilare Bhadmus' : 'Dave Brown');
-    const targetAvatar =
-      account?.avatarUrl ||
-      'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=200&q=80';
+    const client = getSupabase();
+    if (!client) {
+      return { success: false, message: 'Supabase client is not available.' };
+    }
 
-    const users = StorageService.getUsers();
-    let user = users.find((u) => u.email.toLowerCase() === targetEmail);
-
-    const isSuperAdminEmail =
-      targetEmail === SUPER_ADMIN_EMAIL.toLowerCase() ||
-      targetEmail === SECONDARY_ADMIN_EMAIL.toLowerCase();
-
-    if (!user) {
-      const username = targetEmail.split('@')[0].replace(/[^a-zA-Z0-9_]/g, '') || `user_${Date.now()}`;
-      user = StorageService.createUser({
-        fullName: targetName,
-        username: username,
-        email: targetEmail,
-        avatarUrl: targetAvatar,
-        role: isSuperAdminEmail ? 'SUPER_ADMIN' : 'STUDENT',
-        sellerStatus: isSuperAdminEmail ? 'VERIFIED_SELLER' : 'NOT_SELLER',
-        sellerOnboardingCompleted: isSuperAdminEmail,
-        universityId: 'uni-uniosun',
-        universityName: 'Osun State University',
-        campusId: 'campus-osogbo',
-        campusName: 'Osogbo Main Campus',
-        facultyId: 'fac-computing',
-        facultyName: 'Faculty of Computing and Information Technology (FOCIT)',
-        departmentId: 'dept-comp-cs',
-        departmentName: 'Computer Science',
-        level: '300L',
-        bio: isSuperAdminEmail
-          ? 'Founder & Super Administrator of CampusCore by Ace Tech.'
-          : 'Student at Osun State University connected via Google.',
-        phone: isSuperAdminEmail ? '+2348012345678' : undefined,
-        whatsapp: isSuperAdminEmail ? '2348012345678' : undefined,
-        showPhonePublicly: true,
-        showDepartmentPublicly: true,
-        rating: 5.0,
-        totalRatings: 1,
-        verificationBadge: isSuperAdminEmail ? 'trusted_seller' : 'verified_student',
-        accountStatus: 'active',
+    try {
+      const { error } = await client.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: window.location.origin,
+        },
       });
-    } else {
-      if (isSuperAdminEmail && user.role !== 'SUPER_ADMIN') {
-        const updated = StorageService.updateUser(user.id, {
-          role: 'SUPER_ADMIN',
-          sellerStatus: 'VERIFIED_SELLER',
-          sellerOnboardingCompleted: true,
-        });
-        if (updated) user = updated;
+
+      if (error) {
+        return { success: false, message: error.message };
       }
+
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, message: err.message || 'Google sign-in failed' };
     }
+  };
 
-    if (user.accountStatus === 'suspended' || user.accountStatus === 'banned') {
-      setIsLoading(false);
-      return { success: false, message: 'This Google account has been suspended by CampusCore safety moderation.' };
-    }
-
-    StorageService.setCurrentUser(user.id);
-    StorageService.addSavedAccount(user);
-    setCurrentUser(user);
-    setSavedAccounts(StorageService.getSavedAccounts());
-    setIsLoading(false);
-
+  const loginWithSavedAccount = async (_userId: string): Promise<{ success: boolean; message?: string }> => {
     return {
-      success: true,
-      message: isSuperAdminEmail
-        ? `Signed in as Super Administrator.`
-        : `Signed in as ${user.fullName}`,
+      success: false,
+      message: 'Please enter your password to sign in securely.',
     };
-  };
-
-  const loginWithSavedAccount = async (userId: string): Promise<{ success: boolean; message?: string }> => {
-    setIsLoading(true);
-    await new Promise((resolve) => setTimeout(resolve, 200));
-
-    const user = StorageService.getUserById(userId);
-    if (!user) {
-      StorageService.removeSavedAccount(userId);
-      setSavedAccounts(StorageService.getSavedAccounts());
-      setIsLoading(false);
-      return { success: false, message: 'Saved account not found.' };
-    }
-
-    if (user.accountStatus === 'suspended' || user.accountStatus === 'banned') {
-      setIsLoading(false);
-      return { success: false, message: 'This account has been suspended by safety moderation.' };
-    }
-
-    StorageService.setCurrentUser(user.id);
-    StorageService.addSavedAccount(user);
-    setCurrentUser(user);
-    setSavedAccounts(StorageService.getSavedAccounts());
-    setIsLoading(false);
-    return { success: true };
   };
 
   const removeSavedAccount = (userId: string) => {
@@ -363,124 +278,99 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setSavedAccounts(StorageService.getSavedAccounts());
   };
 
-  const signup = async (data: SignupData): Promise<{ success: boolean; message?: string }> => {
+  const signup = async (data: SignupData): Promise<{
+    success: boolean;
+    message?: string;
+    requiresEmailConfirmation?: boolean;
+  }> => {
     setIsLoading(true);
 
-    const isSuperAdminEmail = SupabaseService.isSuperAdminEmail(data.email);
-
-    // 1. Supabase Signup if configured
-    if (isSupabaseConfigured()) {
-      const supaRes = await SupabaseService.signUp({
-        email: data.email,
-        password: data.password,
-        fullName: data.fullName,
-        username: data.username,
-        universityId: data.universityId,
-        campusId: data.campusId,
-        facultyId: data.facultyId,
-        departmentId: data.departmentId,
-        level: data.level,
-        phone: data.phone,
-        whatsapp: data.whatsapp,
-        bio: data.bio,
-        avatarUrl: data.avatarUrl,
-        role: isSuperAdminEmail ? 'SUPER_ADMIN' : 'STUDENT',
-      });
-
-      if (!supaRes.success) {
-        setIsLoading(false);
-        return { success: false, message: supaRes.message };
-      }
-
-      if (supaRes.user) {
-        StorageService.updateUser(supaRes.user.id, supaRes.user);
-        StorageService.setCurrentUser(supaRes.user.id);
-        StorageService.addSavedAccount(supaRes.user);
-        setCurrentUser(supaRes.user);
-        setDemoUsers(StorageService.getUsers());
-        setSavedAccounts(StorageService.getSavedAccounts());
-        setIsLoading(false);
-        return { success: true };
-      }
-
-      if (supaRes.message && (supaRes.message.toLowerCase().includes('confirm') || supaRes.message.toLowerCase().includes('email') || supaRes.message.toLowerCase().includes('verification'))) {
-        setIsLoading(false);
-        return { success: true, message: supaRes.message };
-      }
+    if (!isSupabaseConfigured()) {
+      setIsLoading(false);
+      return {
+        success: false,
+        message: 'Supabase authentication is not configured. Please ensure VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are set in your environment variables.',
+      };
     }
 
-    // 2. Also register in local storage cache for offline development
-    const universities = StorageService.getUniversities();
-    const campuses = StorageService.getCampuses();
-    const faculties = StorageService.getFaculties();
-    const departments = StorageService.getDepartments();
+    if (!data.password || data.password.length < 6) {
+      setIsLoading(false);
+      return {
+        success: false,
+        message: 'Password must be at least 6 characters long.',
+      };
+    }
 
-    const selectedUni = universities.find((u) => u.id === data.universityId);
-    const selectedCampus = campuses.find((c) => c.id === data.campusId);
-    const selectedFaculty = faculties.find((f) => f.id === data.facultyId);
-    const selectedDept = departments.find((d) => d.id === data.departmentId);
-
-    const newUser = StorageService.createUser({
+    const supaRes = await SupabaseService.signUp({
+      email: data.email,
+      password: data.password,
       fullName: data.fullName,
-      username: data.username.toLowerCase().trim(),
-      email: data.email.toLowerCase().trim(),
-      avatarUrl:
-        data.avatarUrl ||
-        `https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=200&q=80`,
-      role: isSuperAdminEmail ? 'SUPER_ADMIN' : 'STUDENT',
-      sellerStatus: isSuperAdminEmail ? 'VERIFIED_SELLER' : 'NOT_SELLER',
-      sellerOnboardingCompleted: isSuperAdminEmail,
+      username: data.username,
       universityId: data.universityId,
-      universityName: selectedUni?.name || 'Osun State University',
       campusId: data.campusId,
-      campusName: selectedCampus?.name || 'Osogbo Main Campus',
       facultyId: data.facultyId,
-      facultyName: selectedFaculty?.name,
       departmentId: data.departmentId,
-      departmentName: selectedDept?.name,
-      level: data.level || '100L',
-      bio: data.bio || 'Student on CampusCore.',
+      level: data.level,
       phone: data.phone,
-      whatsapp: data.whatsapp || (data.phone ? data.phone.replace(/[^0-9]/g, '') : undefined),
-      telegram: data.telegram,
-      showPhonePublicly: true,
-      showDepartmentPublicly: true,
-      rating: 5.0,
-      totalRatings: 1,
-      verificationBadge: isSuperAdminEmail ? 'trusted_seller' : 'unverified',
-      accountStatus: 'active',
+      whatsapp: data.whatsapp,
+      bio: data.bio,
+      avatarUrl: data.avatarUrl,
     });
 
-    StorageService.createNotification({
-      userId: newUser.id,
-      title: 'Welcome to CampusCore!',
-      message: `Welcome ${newUser.fullName}! You are registered under ${newUser.universityName} (${newUser.campusName}).`,
-      type: 'system_announcement',
-    });
-
-    StorageService.addSavedAccount(newUser);
-    setCurrentUser(newUser);
-    setDemoUsers(StorageService.getUsers());
-    setSavedAccounts(StorageService.getSavedAccounts());
     setIsLoading(false);
-    return { success: true };
+
+    if (!supaRes.success) {
+      return {
+        success: false,
+        message: supaRes.message || 'Signup failed. Please try again.',
+      };
+    }
+
+    if (supaRes.requiresEmailConfirmation || !supaRes.user) {
+      return {
+        success: true,
+        requiresEmailConfirmation: true,
+        message: supaRes.message || 'Registration successful! Please check your email to verify your account before logging in.',
+      };
+    }
+
+    // Authenticated session created immediately
+    setCurrentUser(supaRes.user);
+    StorageService.updateUser(supaRes.user.id, supaRes.user);
+    StorageService.setCurrentUser(supaRes.user.id);
+    StorageService.addSavedAccount(supaRes.user);
+    setSavedAccounts(StorageService.getSavedAccounts());
+
+    return {
+      success: true,
+      requiresEmailConfirmation: false,
+      message: supaRes.message,
+    };
   };
 
   const logout = async () => {
-    if (isSupabaseConfigured()) {
-      await SupabaseService.signOut();
+    setIsLoading(true);
+    const client = getSupabase();
+    if (client && isSupabaseConfigured()) {
+      try {
+        await client.auth.signOut();
+      } catch (err) {
+        console.warn('Sign out notice:', err);
+      }
     }
     StorageService.setCurrentUser(null);
     setCurrentUser(null);
+    setIsLoading(false);
   };
 
   const resetPassword = async (email: string): Promise<{ success: boolean; message?: string }> => {
-    if (isSupabaseConfigured()) {
-      return await SupabaseService.resetPasswordForEmail(email);
+    if (!isSupabaseConfigured()) {
+      return {
+        success: false,
+        message: 'Supabase authentication is not configured. Please ensure VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are configured.',
+      };
     }
-    // Fallback simulation
-    await new Promise((resolve) => setTimeout(resolve, 300));
-    return { success: true, message: `Password reset link sent to ${email}.` };
+    return await SupabaseService.resetPasswordForEmail(email);
   };
 
   const updatePassword = async (newPassword: string): Promise<{ success: boolean; message?: string }> => {

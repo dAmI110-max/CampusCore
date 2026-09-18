@@ -35,27 +35,53 @@ export class SupabaseService {
   // AUTHENTICATION
   // ==========================================
 
-  static async signUp(payload: SupabaseSignupPayload): Promise<{ success: boolean; user?: UserProfile; message?: string }> {
+  static async signUp(payload: SupabaseSignupPayload): Promise<{
+    success: boolean;
+    user?: UserProfile;
+    requiresEmailConfirmation?: boolean;
+    message?: string;
+  }> {
     const supabase = getSupabase();
-    if (!supabase) {
-      return { success: false, message: 'Supabase is not configured' };
+    if (!supabase || !isSupabaseConfigured()) {
+      return {
+        success: false,
+        message: 'Supabase is not configured. Please ensure VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are set in your environment variables.',
+      };
     }
 
     try {
-      const isSuper = this.isSuperAdminEmail(payload.email);
+      const cleanEmail = payload.email.trim().toLowerCase();
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!cleanEmail || !emailRegex.test(cleanEmail)) {
+        return { success: false, message: 'Please enter a valid email address.' };
+      }
+
+      if (!payload.password || payload.password.length < 6) {
+        return { success: false, message: 'Password must be at least 6 characters long.' };
+      }
+
+      if (!payload.fullName || !payload.fullName.trim()) {
+        return { success: false, message: 'Please enter your full name.' };
+      }
+
+      if (!payload.username || !payload.username.trim()) {
+        return { success: false, message: 'Please choose a username.' };
+      }
+
+      const isSuper = this.isSuperAdminEmail(cleanEmail);
       const role: UserRole = isSuper ? 'SUPER_ADMIN' : 'STUDENT';
       const sellerStatus: SellerStatus = isSuper ? 'VERIFIED_SELLER' : 'NOT_SELLER';
 
       const { data, error } = await supabase.auth.signUp({
-        email: payload.email.trim().toLowerCase(),
-        password: payload.password || `CampusCore_${Math.random().toString(36).slice(-8)}!`,
+        email: cleanEmail,
+        password: payload.password,
         options: {
           data: {
             full_name: payload.fullName.trim(),
             username: payload.username.trim().toLowerCase(),
             avatar_url: payload.avatarUrl || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=200&q=80',
-            university_id: payload.universityId,
-            campus_id: payload.campusId,
+            university_id: payload.universityId || 'uni-uniosun',
+            campus_id: payload.campusId || 'campus-osogbo',
             faculty_id: payload.facultyId,
             department_id: payload.departmentId,
             level: payload.level || '100L',
@@ -74,55 +100,71 @@ export class SupabaseService {
         return { success: false, message: 'Failed to create user account in Supabase.' };
       }
 
-      // Check if session was created or confirmation is required
-      const sessionCreated = !!data.session;
-
-      // Ensure profile row exists in public.profiles table
-      const profileData = {
-        id: data.user.id,
-        auth_user_id: data.user.id,
-        email: payload.email.trim().toLowerCase(),
-        full_name: payload.fullName.trim(),
-        username: payload.username.trim().toLowerCase(),
-        avatar_url: payload.avatarUrl || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=200&q=80',
-        role,
-        seller_status: sellerStatus,
-        seller_onboarding_completed: isSuper,
-        university_id: payload.universityId,
-        university_name: 'Osun State University',
-        campus_id: payload.campusId,
-        campus_name: 'Osogbo Main Campus',
-        faculty_id: payload.facultyId,
-        department_id: payload.departmentId,
-        level: payload.level || '100L',
-        phone: payload.phone,
-        whatsapp: payload.whatsapp,
-        bio: isSuper ? 'Founder & Super Administrator of CampusCore.' : 'Student at Osun State University.',
-        verification_badge: isSuper ? 'trusted_seller' : 'unverified',
-        account_status: 'active',
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      };
-
-      // If session exists, upsert directly into profiles
-      if (sessionCreated) {
-        await supabase.from('profiles').upsert(profileData, { onConflict: 'id' });
-      }
-
-      let profile = await this.fetchProfile(data.user.id);
-      if (!profile && sessionCreated) {
-        profile = this.mapDbProfileToUserProfile(profileData);
-      }
-
-      if (!sessionCreated) {
+      // Check if user already exists (Supabase security feature: empty identities array returned for existing email)
+      if (Array.isArray(data.user.identities) && data.user.identities.length === 0) {
         return {
-          success: true,
-          user: profile || undefined,
-          message: 'Registration successful! Please check your email to confirm your account before logging in.',
+          success: false,
+          message: 'An account with this email address already exists. Please log in instead.',
         };
       }
 
-      return { success: true, user: profile || undefined };
+      // Check if session was created or confirmation is required
+      const sessionCreated = Boolean(data.session);
+
+      if (sessionCreated) {
+        // Active session created directly
+        const profileData = {
+          id: data.user.id,
+          auth_user_id: data.user.id,
+          email: cleanEmail,
+          full_name: payload.fullName.trim(),
+          username: payload.username.trim().toLowerCase(),
+          avatar_url: payload.avatarUrl || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=200&q=80',
+          role,
+          seller_status: sellerStatus,
+          seller_onboarding_completed: isSuper,
+          university_id: payload.universityId || 'uni-uniosun',
+          university_name: 'Osun State University',
+          campus_id: payload.campusId || 'campus-osogbo',
+          campus_name: 'Osogbo Main Campus',
+          faculty_id: payload.facultyId,
+          department_id: payload.departmentId,
+          level: payload.level || '100L',
+          phone: payload.phone,
+          whatsapp: payload.whatsapp,
+          bio: isSuper ? 'Founder & Super Administrator of CampusCore.' : 'Student at Osun State University.',
+          verification_badge: isSuper ? 'trusted_seller' : 'unverified',
+          account_status: 'active',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+
+        try {
+          await supabase.from('profiles').upsert(profileData, { onConflict: 'id' });
+        } catch (upsertErr) {
+          console.warn('Profile upsert notice:', upsertErr);
+        }
+
+        let profile = await this.fetchProfile(data.user.id);
+        if (!profile) {
+          profile = this.mapDbProfileToUserProfile(profileData);
+        }
+
+        return {
+          success: true,
+          user: profile || undefined,
+          requiresEmailConfirmation: false,
+          message: 'Account created successfully!',
+        };
+      }
+
+      // If no session was created, email confirmation is required by Supabase
+      return {
+        success: true,
+        user: undefined,
+        requiresEmailConfirmation: true,
+        message: 'Registration successful! A verification link has been sent to your email. Please check your inbox to confirm your account before signing in.',
+      };
     } catch (err: any) {
       return { success: false, message: err.message || 'Signup failed' };
     }
@@ -130,8 +172,15 @@ export class SupabaseService {
 
   static async signIn(email: string, password?: string): Promise<{ success: boolean; user?: UserProfile; message?: string }> {
     const supabase = getSupabase();
-    if (!supabase) {
-      return { success: false, message: 'Supabase is not configured' };
+    if (!supabase || !isSupabaseConfigured()) {
+      return {
+        success: false,
+        message: 'Supabase is not configured. Please ensure VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are set in your environment variables.',
+      };
+    }
+
+    if (!password) {
+      return { success: false, message: 'Password is required to log in.' };
     }
 
     try {
@@ -155,15 +204,15 @@ export class SupabaseService {
 
       const { data, error } = await supabase.auth.signInWithPassword({
         email: targetEmail,
-        password: password || '',
+        password: password,
       });
 
       if (error) {
-        return { success: false, message: error.message };
+        return { success: false, message: error.message || 'Invalid email or password.' };
       }
 
-      if (!data.user) {
-        return { success: false, message: 'Invalid credentials.' };
+      if (!data.user || !data.session) {
+        return { success: false, message: 'Invalid credentials or unconfirmed email.' };
       }
 
       let profile = await this.fetchProfile(data.user.id);

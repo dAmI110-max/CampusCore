@@ -181,7 +181,11 @@ function safeGetRaw(key: string): string | null {
   return memoryStore[key] ?? null;
 }
 
-function safeSetRaw(key: string, value: string): void {
+function safeSetRaw(key: string, value: string): boolean {
+  const previous = safeGetRaw(key);
+  if (previous === value) {
+    return false; // No change
+  }
   memoryStore[key] = value;
   try {
     if (typeof window !== 'undefined' && window.localStorage) {
@@ -190,6 +194,7 @@ function safeSetRaw(key: string, value: string): void {
   } catch {
     // Safari Private Mode, QuotaExceededError, or blocked storage
   }
+  return true; // Value changed
 }
 
 // Safe LocalStorage helpers with automatic memory fallback
@@ -203,18 +208,26 @@ function getItem<T>(key: string, defaultValue: T): T {
   }
 }
 
+const pendingDispatches: Record<string, number> = {};
+
 function setItem<T>(key: string, value: T): void {
   try {
-    safeSetRaw(key, JSON.stringify(value));
-    // Dispatch custom event asynchronously so React rendering passes are never interrupted
-    if (typeof window !== 'undefined') {
-      setTimeout(() => {
+    const serialized = JSON.stringify(value);
+    const changed = safeSetRaw(key, serialized);
+
+    // Only dispatch if the content actually changed and debounce duplicate dispatches
+    if (changed && typeof window !== 'undefined') {
+      if (pendingDispatches[key]) {
+        clearTimeout(pendingDispatches[key]);
+      }
+      pendingDispatches[key] = window.setTimeout(() => {
+        delete pendingDispatches[key];
         try {
           window.dispatchEvent(new CustomEvent('campusplug_storage_update', { detail: { key } }));
         } catch {
           // ignore event dispatch errors on older WebKit
         }
-      }, 0);
+      }, 50);
     }
   } catch (error) {
     console.error(`Error writing ${key} to storage:`, error);
