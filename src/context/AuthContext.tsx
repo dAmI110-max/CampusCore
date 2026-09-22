@@ -51,6 +51,8 @@ interface AuthContextType {
   demoUsers: UserProfile[];
   refreshUser: () => void;
   isSupabaseConnected: boolean;
+  isPasswordRecovery: boolean;
+  clearPasswordRecovery: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -60,6 +62,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isLoading, setIsLoading] = useState(true);
   const [demoUsers, setDemoUsers] = useState<UserProfile[]>([]);
   const [savedAccounts, setSavedAccounts] = useState<UserProfile[]>([]);
+  const [isPasswordRecovery, setIsPasswordRecovery] = useState<boolean>(() => {
+    // Fallback in case the PASSWORD_RECOVERY event fires before this listener
+    // attaches, or the SDK doesn't surface it in some edge case: also check the
+    // URL directly for Supabase's recovery marker on first load.
+    if (typeof window === 'undefined') return false;
+    return window.location.pathname === '/reset-password' || window.location.hash.includes('type=recovery');
+  });
   const isSupabaseConnected = isSupabaseConfigured();
 
   const refreshUser = useCallback(async () => {
@@ -167,6 +176,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             StorageService.addSavedAccount(profile);
             setSavedAccounts(StorageService.getSavedAccounts());
           }
+        } else if (event === 'PASSWORD_RECOVERY') {
+          // Fired when the user lands here via the "reset password" email link.
+          // Show the "set a new password" screen instead of silently doing nothing —
+          // this is the missing piece that made the reset link look like it did nothing.
+          if (mounted) setIsPasswordRecovery(true);
         } else if (event === 'SIGNED_OUT') {
           if (mounted) {
             setCurrentUser(null);
@@ -509,6 +523,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         demoUsers,
         refreshUser,
         isSupabaseConnected,
+        isPasswordRecovery,
+        clearPasswordRecovery: () => setIsPasswordRecovery(false),
       }}
     >
       {children}

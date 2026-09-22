@@ -18,6 +18,7 @@ import {
 
 // Common Components
 import { ToastContainer } from './components/common/ToastContainer';
+import { ResetPasswordScreen } from './components/auth/ResetPasswordScreen';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { Navbar, AppViewMode } from './components/layout/Navbar';
 import { BottomNav } from './components/layout/BottomNav';
@@ -76,7 +77,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 
 const MainApp: React.FC = () => {
-  const { currentUser, isSeller, isAdmin } = useAuth();
+  const { currentUser, isSeller, isAdmin, isPasswordRecovery } = useAuth();
   const { activeModal, openModal, closeModal, isModalOpen } = useModal();
   const { success } = useToast();
 
@@ -235,7 +236,13 @@ const MainApp: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col selection:bg-indigo-600 selection:text-white font-sans antialiased transition-colors">
+    <>
+      {isPasswordRecovery && <ResetPasswordScreen />}
+      <div
+        className={`min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col selection:bg-indigo-600 selection:text-white font-sans antialiased transition-colors ${
+          isPasswordRecovery ? 'hidden' : ''
+        }`}
+      >
       {/* 1. Global Desktop Navigation Bar */}
       <Navbar
         currentView={currentView}
@@ -878,7 +885,8 @@ const MainApp: React.FC = () => {
 
       {/* 6. Global Toast Container */}
       <ToastContainer />
-    </div>
+      </div>
+    </>
   );
 };
 

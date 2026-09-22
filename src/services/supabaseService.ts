@@ -332,7 +332,7 @@ export class SupabaseService {
 
     try {
       const cleanEmail = email.trim().toLowerCase();
-      const redirectUrl = typeof window !== 'undefined' ? `${window.location.origin}/#reset-password` : '';
+      const redirectUrl = typeof window !== 'undefined' ? `${window.location.origin}/reset-password` : '';
       
       const { error } = await supabase.auth.resetPasswordForEmail(cleanEmail, {
         redirectTo: redirectUrl,
