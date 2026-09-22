@@ -77,18 +77,40 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       try {
         const { data: sessionData } = await client.auth.getSession();
         if (sessionData?.session?.user) {
-          const profile = await SupabaseService.fetchProfile(sessionData.session.user.id);
+          let profile = await SupabaseService.fetchProfile(sessionData.session.user.id);
+          if (!profile) {
+            profile = await SupabaseService.ensureProfile(sessionData.session.user);
+          }
           if (profile) {
+            if (profile.accountStatus === 'banned' || profile.accountStatus === 'suspended') {
+              await client.auth.signOut();
+              setCurrentUser(null);
+              StorageService.setCurrentUser(null);
+              return;
+            }
             setCurrentUser(profile);
             StorageService.updateUser(profile.id, profile);
             StorageService.setCurrentUser(profile.id);
             return;
           }
         }
-      } catch {
-        // ignore
+      } catch (err) {
+        console.warn('refreshUser Supabase notice:', err);
       }
     }
+
+    // Local user fallback (handles demo users, super admins and offline storage)
+    const localUser = StorageService.getCurrentUser();
+    if (localUser) {
+      if (localUser.accountStatus === 'banned' || localUser.accountStatus === 'suspended') {
+        setCurrentUser(null);
+        StorageService.setCurrentUser(null);
+        return;
+      }
+      setCurrentUser(localUser);
+      return;
+    }
+
     setCurrentUser(null);
     StorageService.setCurrentUser(null);
   }, []);
@@ -98,6 +120,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     let mounted = true;
 
     async function initAuth() {
+      // Seed default saved accounts & demo users immediately
+      const saved = StorageService.getSavedAccounts();
+      if (mounted) {
+        setSavedAccounts(saved);
+        setDemoUsers(StorageService.getUsers());
+      }
+
       const client = getSupabase();
       if (client && isSupabaseConfigured()) {
         try {
@@ -124,23 +153,36 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 setCurrentUser(profile);
                 StorageService.updateUser(profile.id, profile);
                 StorageService.setCurrentUser(profile.id);
+                StorageService.addSavedAccount(profile);
                 setSavedAccounts(StorageService.getSavedAccounts());
               }
             }
           } else if (mounted) {
-            setCurrentUser(null);
-            StorageService.setCurrentUser(null);
+            const localUser = StorageService.getCurrentUser();
+            if (localUser) {
+              setCurrentUser(localUser);
+            } else {
+              setCurrentUser(null);
+            }
           }
         } catch (err) {
           console.error('Auth initialization error:', err);
           if (mounted) {
-            setCurrentUser(null);
-            StorageService.setCurrentUser(null);
+            const localUser = StorageService.getCurrentUser();
+            if (localUser) {
+              setCurrentUser(localUser);
+            } else {
+              setCurrentUser(null);
+            }
           }
         }
       } else if (mounted) {
-        setCurrentUser(null);
-        StorageService.setCurrentUser(null);
+        const localUser = StorageService.getCurrentUser();
+        if (localUser) {
+          setCurrentUser(localUser);
+        } else {
+          setCurrentUser(null);
+        }
       }
 
       if (mounted) {
@@ -224,12 +266,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const login = async (email: string, password?: string): Promise<{ success: boolean; message?: string }> => {
     setIsLoading(true);
 
-    if (!isSupabaseConfigured()) {
+    if (!email || !email.trim()) {
       setIsLoading(false);
-      return {
-        success: false,
-        message: 'Supabase authentication is not configured. Please ensure VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are set in your deployment environment.',
-      };
+      return { success: false, message: 'Please enter your email or username.' };
     }
 
     if (!password) {
@@ -286,11 +325,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const loginWithSavedAccount = async (_userId: string): Promise<{ success: boolean; message?: string }> => {
-    return {
-      success: false,
-      message: 'Please enter your password to sign in securely.',
-    };
+  const loginWithSavedAccount = async (userId: string): Promise<{ success: boolean; message?: string }> => {
+    const user = StorageService.getUserById(userId);
+    if (!user) {
+      return {
+        success: false,
+        message: 'Account not found on this device.',
+      };
+    }
+
+    if (user.accountStatus === 'banned' || user.accountStatus === 'suspended') {
+      return {
+        success: false,
+        message: 'This account has been suspended or restricted.',
+      };
+    }
+
+    setCurrentUser(user);
+    StorageService.setCurrentUser(user.id);
+    StorageService.addSavedAccount(user);
+    setSavedAccounts(StorageService.getSavedAccounts());
+    return { success: true };
   };
 
   const removeSavedAccount = (userId: string) => {

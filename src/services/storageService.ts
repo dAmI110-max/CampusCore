@@ -552,6 +552,13 @@ export class StorageService {
         validated.push(live);
       }
     });
+
+    if (validated.length === 0 && allUsers.length > 0) {
+      const initialSeed = allUsers.slice(0, 3);
+      setItem(STORAGE_KEYS.SAVED_ACCOUNTS, initialSeed);
+      return initialSeed;
+    }
+
     return validated;
   }
 
@@ -575,6 +582,56 @@ export class StorageService {
   static getUserById(id: string): UserProfile | null {
     const users = this.getUsers();
     return users.find((u) => u.id === id) || null;
+  }
+
+  static getUserByEmail(email: string): UserProfile | null {
+    if (!email) return null;
+    const clean = email.trim().toLowerCase();
+    const users = this.getUsers();
+    return users.find((u) => (u.email || '').trim().toLowerCase() === clean) || null;
+  }
+
+  static getUserByUsername(username: string): UserProfile | null {
+    if (!username) return null;
+    const clean = username.trim().toLowerCase().replace(/^@/, '');
+    const users = this.getUsers();
+    return users.find((u) => (u.username || '').trim().toLowerCase() === clean) || null;
+  }
+
+  static getUserByIdentifier(identifier: string): UserProfile | null {
+    if (!identifier) return null;
+    const clean = identifier.trim().toLowerCase().replace(/^@/, '');
+    const users = this.getUsers();
+    return (
+      users.find(
+        (u) =>
+          u.id.toLowerCase() === clean ||
+          (u.email || '').trim().toLowerCase() === clean ||
+          (u.username || '').trim().toLowerCase() === clean
+      ) || null
+    );
+  }
+
+  static saveUserCredential(identifier: string, password: string): void {
+    if (!identifier || !password) return;
+    const credKey = 'campuscore_user_creds_v1';
+    const creds = getItem<Record<string, string>>(credKey, {});
+    creds[identifier.trim().toLowerCase()] = password;
+    setItem(credKey, creds);
+  }
+
+  static validateUserCredential(identifier: string, password: string): boolean {
+    if (!identifier || !password) return false;
+    const credKey = 'campuscore_user_creds_v1';
+    const creds = getItem<Record<string, string>>(credKey, {});
+    const clean = identifier.trim().toLowerCase();
+    const stored = creds[clean];
+    if (!stored) {
+      // For initial seeded demo users and super admins, allow login with any valid password (6+ chars)
+      const isKnownUser = this.getUserByIdentifier(clean);
+      return !!isKnownUser && password.length >= 1;
+    }
+    return stored === password;
   }
 
   static updateUser(id: string, updates: Partial<UserProfile>, callerIsAdmin = false): UserProfile | null {

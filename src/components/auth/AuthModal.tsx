@@ -19,8 +19,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   onClose,
   initialMode = 'login',
 }) => {
-  const { login, signup, googleLogin, savedAccounts, removeSavedAccount, resetPassword, isSupabaseConnected } = useAuth();
-  const { success, error } = useToast();
+  const { login, loginWithSavedAccount, signup, googleLogin, savedAccounts, removeSavedAccount, resetPassword, isSupabaseConnected } = useAuth();
+  const { success, error, info } = useToast();
 
   const [mode, setMode] = useState<'login' | 'signup' | 'reset'>(initialMode);
   const [loading, setLoading] = useState(false);
@@ -104,10 +104,18 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     }
   };
 
-  const handleSavedAccountClick = (account: UserProfile) => {
-    setLoginEmail(account.email || account.username);
-    setMode('login');
-    success(`Selected ${account.fullName}. Please enter your password to sign in.`);
+  const handleSavedAccountClick = async (account: UserProfile) => {
+    setLoading(true);
+    const res = await loginWithSavedAccount(account.id);
+    setLoading(false);
+    if (res.success) {
+      success(`Welcome back, ${account.fullName.split(' ')[0]}!`);
+      onClose();
+    } else {
+      setLoginEmail(account.email || account.username);
+      setMode('login');
+      info(`Selected ${account.fullName}. Please enter your password to sign in.`);
+    }
   };
 
   const handleSignupSubmit = async (e: React.FormEvent) => {
