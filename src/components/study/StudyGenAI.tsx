@@ -3,6 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { StudyGenMessage, StudyGenMode } from '../../types';
 import { StorageService } from '../../services/storageService';
+import { getSupabase } from '../../lib/supabase';
 import {
   Sparkles,
   Send,
@@ -246,6 +247,14 @@ export const StudyGenAI: React.FC<StudyGenAIProps> = ({ onBack, onNavigateToReso
     setApiError(null);
     setLastFailedPrompt(null);
 
+    // StudyGen now requires a signed-in session (the server enforces this too —
+    // this check just avoids a wasted request and gives a clearer message).
+    if (!currentUser) {
+      setApiError('Please sign in to use StudyGen AI.');
+      setLastFailedPrompt(queryToSend);
+      return;
+    }
+
     const userMsg: StudyGenMessage = {
       id: `msg-${Date.now()}-user`,
       role: 'user',
@@ -261,11 +270,24 @@ export const StudyGenAI: React.FC<StudyGenAIProps> = ({ onBack, onNavigateToReso
     setIsLoading(true);
 
     try {
-      // Secure server-side call to /api/studygen
+      // Secure server-side call to /api/studygen — requires the caller's Supabase
+      // session token so the server can verify they're actually signed in.
+      const client = getSupabase();
+      const { data: sessionData } = client ? await client.auth.getSession() : { data: { session: null } };
+      const accessToken = sessionData?.session?.access_token;
+
+      if (!accessToken) {
+        setApiError('Your session has expired. Please sign in again.');
+        setLastFailedPrompt(queryToSend);
+        setIsLoading(false);
+        return;
+      }
+
       const response = await fetch('/api/studygen', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
         },
         body: JSON.stringify({
           prompt: queryToSend,
@@ -278,8 +300,12 @@ export const StudyGenAI: React.FC<StudyGenAIProps> = ({ onBack, onNavigateToReso
         }),
       });
 
+      if (response.status === 401) {
+        throw new Error('Please sign in to use StudyGen AI.');
+      }
       if (!response.ok) {
-        throw new Error('StudyGen AI is temporarily unavailable. Please try again later.');
+        const errBody = await response.json().catch(() => null);
+        throw new Error(errBody?.error || 'StudyGen AI is temporarily unavailable. Please try again later.');
       }
 
       const data = await response.json();
@@ -307,7 +333,7 @@ export const StudyGenAI: React.FC<StudyGenAIProps> = ({ onBack, onNavigateToReso
     } catch (err: any) {
       console.error('StudyGen AI Request Failed:', err);
       // ONLY set error when request genuinely failed
-      setApiError('StudyGen is currently unavailable. Please try again later.');
+      setApiError(err?.message || 'StudyGen is currently unavailable. Please try again later.');
       setLastFailedPrompt(queryToSend);
     } finally {
       setIsLoading(false);

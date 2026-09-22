@@ -97,7 +97,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             console.warn('Session check:', sessionError.message);
           }
           if (sessionData?.session?.user && mounted) {
-            const profile = await SupabaseService.fetchProfile(sessionData.session.user.id);
+            let profile = await SupabaseService.fetchProfile(sessionData.session.user.id);
+            if (!profile) {
+              profile = await SupabaseService.ensureProfile(sessionData.session.user);
+            }
             if (profile) {
               if (profile.accountStatus === 'banned' || profile.accountStatus === 'suspended') {
                 await client.auth.signOut();
@@ -147,7 +150,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (!mounted) return;
 
         if (event === 'SIGNED_IN' && session?.user) {
-          const profile = await SupabaseService.fetchProfile(session.user.id);
+          let profile = await SupabaseService.fetchProfile(session.user.id);
+          if (!profile) {
+            profile = await SupabaseService.ensureProfile(session.user);
+          }
           if (profile && mounted) {
             if (profile.accountStatus === 'banned' || profile.accountStatus === 'suspended') {
               await client.auth.signOut();
@@ -186,18 +192,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Local storage event listener - ONLY react if the current user ID was changed
     const handleStorageUpdate = (e: any) => {
       const key = e?.detail?.key;
-      if (key === 'campusplug_current_user_id_v1') {
+      if (key === 'campuscore_current_user_id_v1') {
         refreshUser();
       }
     };
 
-    window.addEventListener('campusplug_storage_update', handleStorageUpdate);
+    window.addEventListener('campuscore_storage_update', handleStorageUpdate);
     return () => {
       mounted = false;
       if (authSubscription) {
         authSubscription.unsubscribe();
       }
-      window.removeEventListener('campusplug_storage_update', handleStorageUpdate);
+      window.removeEventListener('campuscore_storage_update', handleStorageUpdate);
     };
   }, [refreshUser]);
 

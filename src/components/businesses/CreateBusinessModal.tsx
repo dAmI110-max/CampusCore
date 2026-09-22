@@ -74,7 +74,7 @@ export const CreateBusinessModal: React.FC<CreateBusinessModalProps> = ({
         banner: banner.trim(),
         address: address.trim(),
         phone: phone.trim(),
-        email: currentUser.email || 'vendor@campusplug.ng',
+        email: currentUser.email || 'vendor@campuscore.ng',
         whatsapp: whatsapp.trim() || undefined,
         openingHours: openingHours.trim(),
       });

@@ -1,5 +1,5 @@
 -- ==========================================================
--- CAMPUSPLUG PRODUCTION DATABASE & AUTHENTICATION SCHEMA
+-- CAMPUSCORE PRODUCTION DATABASE & AUTHENTICATION SCHEMA
 -- Designed for Supabase PostgreSQL & Row Level Security (RLS)
 -- ==========================================================
 
@@ -28,7 +28,7 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   phone TEXT,
   whatsapp TEXT,
   telegram TEXT,
-  bio TEXT DEFAULT 'CampusPlug Student',
+  bio TEXT DEFAULT 'CampusCore Student',
   show_phone_publicly BOOLEAN DEFAULT TRUE,
   show_department_publicly BOOLEAN DEFAULT TRUE,
   verification_badge TEXT DEFAULT 'unverified' CHECK (verification_badge IN ('unverified', 'verified_student', 'trusted_seller')),
@@ -351,7 +351,7 @@ BEGIN
     COALESCE(NEW.raw_user_meta_data->>'level', '100L'),
     NEW.raw_user_meta_data->>'phone',
     NEW.raw_user_meta_data->>'whatsapp',
-    CASE WHEN is_super_admin THEN 'Founder & Super Administrator of CampusPlug by Ace Tech.' ELSE 'Student at Osun State University.' END,
+    CASE WHEN is_super_admin THEN 'Founder & Super Administrator of CampusCore by Ace Tech.' ELSE 'Student at Osun State University.' END,
     CASE WHEN is_super_admin THEN 'trusted_seller' ELSE 'unverified' END,
     'active'
   )

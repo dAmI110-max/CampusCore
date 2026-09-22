@@ -170,6 +170,81 @@ export class SupabaseService {
     }
   }
 
+  /**
+   * Creates a `profiles` row for an authenticated Supabase Auth user if one doesn't
+   * already exist. This is the fallback safety net for ANY sign-in path (email/password
+   * or OAuth providers like Google) in case the `on_auth_user_created` DB trigger didn't
+   * run or isn't installed on the project. Without this, a user can have a valid Auth
+   * session but appear "logged out" in the app because no matching profile can be found.
+   */
+  static async ensureProfile(user: {
+    id: string;
+    email?: string | null;
+    user_metadata?: Record<string, any>;
+  }): Promise<UserProfile | null> {
+    const supabase = getSupabase();
+    if (!supabase) return null;
+
+    const existing = await this.fetchProfile(user.id);
+    if (existing) return existing;
+
+    const meta = user.user_metadata || {};
+    const email = user.email || meta.email || '';
+    const isSuper = this.isSuperAdminEmail(email);
+    const newProfileData = {
+      id: user.id,
+      auth_user_id: user.id,
+      email,
+      full_name: meta.full_name || meta.name || email.split('@')[0] || 'Student',
+      username: (meta.username || (email.split('@')[0] || `user${user.id.slice(0, 8)}`))
+        .toLowerCase()
+        .replace(/[^a-z0-9_]/g, ''),
+      avatar_url: meta.avatar_url || meta.picture || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=200&q=80',
+      role: isSuper ? 'SUPER_ADMIN' : (meta.role || 'STUDENT'),
+      seller_status: isSuper ? 'VERIFIED_SELLER' : (meta.seller_status || 'NOT_SELLER'),
+      seller_onboarding_completed: isSuper ? true : Boolean(meta.seller_onboarding_completed),
+      university_id: meta.university_id || 'uni-uniosun',
+      university_name: meta.university_name || 'Osun State University',
+      campus_id: meta.campus_id || 'campus-osogbo',
+      campus_name: meta.campus_name || 'Osogbo Main Campus',
+      faculty_id: meta.faculty_id,
+      department_id: meta.department_id,
+      level: meta.level || '100L',
+      phone: meta.phone,
+      whatsapp: meta.whatsapp,
+      bio: isSuper ? 'Founder & Super Administrator of CampusCore.' : 'Student at Osun State University.',
+      verification_badge: isSuper ? 'trusted_seller' : 'unverified',
+      account_status: 'active',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
+    try {
+      await supabase.from('profiles').upsert(newProfileData, { onConflict: 'id' });
+    } catch (err) {
+      console.warn('ensureProfile upsert notice:', err);
+    }
+
+    if (isSuper) {
+      try {
+        await supabase.from('admin_users').upsert(
+          {
+            user_id: user.id,
+            email,
+            full_name: newProfileData.full_name,
+            role: 'SUPER_ADMIN',
+            status: 'active',
+          },
+          { onConflict: 'user_id' }
+        );
+      } catch (err) {
+        console.warn('ensureProfile admin_users notice:', err);
+      }
+    }
+
+    return (await this.fetchProfile(user.id)) || this.mapDbProfileToUserProfile(newProfileData);
+  }
+
   static async signIn(email: string, password?: string): Promise<{ success: boolean; user?: UserProfile; message?: string }> {
     const supabase = getSupabase();
     if (!supabase || !isSupabaseConfigured()) {
@@ -219,36 +294,7 @@ export class SupabaseService {
 
       // If user exists in Auth but profiles row was not created yet (e.g. signup without trigger)
       if (!profile) {
-        const meta = data.user.user_metadata || {};
-        const isSuper = this.isSuperAdminEmail(data.user.email);
-        const newProfileData = {
-          id: data.user.id,
-          auth_user_id: data.user.id,
-          email: data.user.email || targetEmail,
-          full_name: meta.full_name || meta.name || (data.user.email || '').split('@')[0],
-          username: meta.username || ((data.user.email || '').split('@')[0]).toLowerCase().replace(/[^a-z0-9_]/g, ''),
-          avatar_url: meta.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=200&q=80',
-          role: isSuper ? 'SUPER_ADMIN' : (meta.role || 'STUDENT'),
-          seller_status: isSuper ? 'VERIFIED_SELLER' : (meta.seller_status || 'NOT_SELLER'),
-          seller_onboarding_completed: isSuper ? true : Boolean(meta.seller_onboarding_completed),
-          university_id: meta.university_id || 'uni-uniosun',
-          university_name: meta.university_name || 'Osun State University',
-          campus_id: meta.campus_id || 'campus-osogbo',
-          campus_name: meta.campus_name || 'Osogbo Main Campus',
-          faculty_id: meta.faculty_id,
-          department_id: meta.department_id,
-          level: meta.level || '100L',
-          phone: meta.phone,
-          whatsapp: meta.whatsapp,
-          bio: isSuper ? 'Founder & Super Administrator of CampusCore.' : 'Student at Osun State University.',
-          verification_badge: isSuper ? 'trusted_seller' : 'unverified',
-          account_status: 'active',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        };
-
-        await supabase.from('profiles').upsert(newProfileData, { onConflict: 'id' });
-        profile = (await this.fetchProfile(data.user.id)) || this.mapDbProfileToUserProfile(newProfileData);
+        profile = await this.ensureProfile(data.user);
       }
 
       // STRICT ENFORCEMENT OF BANS & SUSPENSIONS:

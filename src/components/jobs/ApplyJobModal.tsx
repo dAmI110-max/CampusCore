@@ -34,7 +34,7 @@ export const ApplyJobModal: React.FC<ApplyJobModalProps> = ({
     `Hello ${job?.companyName || 'Team'}, I am a student at ${currentUser?.universityName || 'UNIOSUN'} interested in this role. I have relevant experience and strong commitment.`
   );
   const [skillsInput, setSkillsInput] = useState('Communication, Time Management, Teamwork');
-  const [resumeUrl, setResumeUrl] = useState('https://drive.google.com/file/d/campusplug-student-cv');
+  const [resumeUrl, setResumeUrl] = useState('https://drive.google.com/file/d/campuscore-student-cv');
   const [portfolioUrl, setPortfolioUrl] = useState('');
   const [submitting, setSubmitting] = useState(false);
 

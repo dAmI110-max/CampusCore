@@ -105,8 +105,8 @@ export const ServicesView: React.FC<ServicesViewProps> = ({
   useEffect(() => {
     loadData();
     const handleUpdate = () => loadData();
-    window.addEventListener('campusplug_storage_update', handleUpdate);
-    return () => window.removeEventListener('campusplug_storage_update', handleUpdate);
+    window.addEventListener('campuscore_storage_update', handleUpdate);
+    return () => window.removeEventListener('campuscore_storage_update', handleUpdate);
   }, [selectedCategory, selectedCampus, selectedPricingModel, selectedDeliveryMethod, searchQuery, currentUser?.id]);
 
   const handleAcceptQuote = (req: ServiceRequest) => {

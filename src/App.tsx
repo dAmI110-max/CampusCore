@@ -112,7 +112,7 @@ const MainApp: React.FC = () => {
         setRefreshKey((prev) => prev + 1);
       }, 100);
     };
-    window.addEventListener('campusplug_storage_update', handleStorageUpdate);
+    window.addEventListener('campuscore_storage_update', handleStorageUpdate);
 
     // Sync live listings from Supabase on mount
     async function syncSupabaseData() {
@@ -135,7 +135,7 @@ const MainApp: React.FC = () => {
 
     return () => {
       if (updateTimer) window.clearTimeout(updateTimer);
-      window.removeEventListener('campusplug_storage_update', handleStorageUpdate);
+      window.removeEventListener('campuscore_storage_update', handleStorageUpdate);
       unsubListings();
     };
   }, []);

@@ -35,8 +35,8 @@ export const AdsManagerView: React.FC = () => {
   useEffect(() => {
     loadData();
     const handleUpdate = () => loadData();
-    window.addEventListener('campusplug_storage_update', handleUpdate);
-    return () => window.removeEventListener('campusplug_storage_update', handleUpdate);
+    window.addEventListener('campuscore_storage_update', handleUpdate);
+    return () => window.removeEventListener('campuscore_storage_update', handleUpdate);
   }, [currentUser]);
 
   const totalImpressions = campaigns.reduce((sum, c) => sum + c.impressions, 0);

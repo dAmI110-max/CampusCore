@@ -67,8 +67,8 @@ export const BusinessesView: React.FC<BusinessesViewProps> = ({
   useEffect(() => {
     loadData();
     const handleUpdate = () => loadData();
-    window.addEventListener('campusplug_storage_update', handleUpdate);
-    return () => window.removeEventListener('campusplug_storage_update', handleUpdate);
+    window.addEventListener('campuscore_storage_update', handleUpdate);
+    return () => window.removeEventListener('campuscore_storage_update', handleUpdate);
   }, [selectedCategory, selectedCampus, searchQuery, currentUser?.id]);
 
   const handleToggleFollow = (biz: BusinessProfile) => {

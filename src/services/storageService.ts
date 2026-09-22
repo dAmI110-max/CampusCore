@@ -113,57 +113,57 @@ import {
 } from '../data/initialData';
 
 const STORAGE_KEYS = {
-  UNIVERSITIES: 'campusplug_universities_v1',
-  CAMPUSES: 'campusplug_campuses_v1',
-  FACULTIES: 'campusplug_faculties_v1',
-  DEPARTMENTS: 'campusplug_departments_v1',
-  CATEGORIES: 'campusplug_categories_v1',
-  USERS: 'campusplug_users_v1',
-  CURRENT_USER_ID: 'campusplug_current_user_id_v1',
-  PRODUCTS: 'campusplug_products_v1',
-  ACCOMMODATIONS: 'campusplug_accommodations_v1',
-  FAVORITES: 'campusplug_favorites_v1',
-  REPORTS: 'campusplug_reports_v1',
-  NOTIFICATIONS: 'campusplug_notifications_v1',
-  WALLETS: 'campusplug_wallets_v2',
-  WALLET_TRANSACTIONS: 'campusplug_wallet_txs_v2',
-  BANK_ACCOUNTS: 'campusplug_bank_accounts_v2',
-  ORDERS: 'campusplug_orders_v2',
-  ESCROWS: 'campusplug_escrows_v2',
-  DISPUTES: 'campusplug_disputes_v2',
-  REVIEWS: 'campusplug_reviews_v2',
-  VERIFICATIONS: 'campusplug_verifications_v2',
-  CONVERSATIONS: 'campusplug_conversations_v2',
-  MESSAGES: 'campusplug_messages_v2',
-  ROOMMATES: 'campusplug_roommates_v2',
-  SAVED_ACCOMMODATIONS: 'campusplug_saved_accommodations_v2',
-  AUDIT_LOGS: 'campusplug_audit_logs_v2',
-  PLATFORM_SETTINGS: 'campusplug_settings_v2',
+  UNIVERSITIES: 'campuscore_universities_v1',
+  CAMPUSES: 'campuscore_campuses_v1',
+  FACULTIES: 'campuscore_faculties_v1',
+  DEPARTMENTS: 'campuscore_departments_v1',
+  CATEGORIES: 'campuscore_categories_v1',
+  USERS: 'campuscore_users_v1',
+  CURRENT_USER_ID: 'campuscore_current_user_id_v1',
+  PRODUCTS: 'campuscore_products_v1',
+  ACCOMMODATIONS: 'campuscore_accommodations_v1',
+  FAVORITES: 'campuscore_favorites_v1',
+  REPORTS: 'campuscore_reports_v1',
+  NOTIFICATIONS: 'campuscore_notifications_v1',
+  WALLETS: 'campuscore_wallets_v2',
+  WALLET_TRANSACTIONS: 'campuscore_wallet_txs_v2',
+  BANK_ACCOUNTS: 'campuscore_bank_accounts_v2',
+  ORDERS: 'campuscore_orders_v2',
+  ESCROWS: 'campuscore_escrows_v2',
+  DISPUTES: 'campuscore_disputes_v2',
+  REVIEWS: 'campuscore_reviews_v2',
+  VERIFICATIONS: 'campuscore_verifications_v2',
+  CONVERSATIONS: 'campuscore_conversations_v2',
+  MESSAGES: 'campuscore_messages_v2',
+  ROOMMATES: 'campuscore_roommates_v2',
+  SAVED_ACCOMMODATIONS: 'campuscore_saved_accommodations_v2',
+  AUDIT_LOGS: 'campuscore_audit_logs_v2',
+  PLATFORM_SETTINGS: 'campuscore_settings_v2',
   // Phase 3 Ecosystem Keys
-  SERVICE_CATEGORIES: 'campusplug_service_cats_v3',
-  SERVICES: 'campusplug_services_v3',
-  SERVICE_REQUESTS: 'campusplug_service_reqs_v3',
-  BOOKINGS: 'campusplug_bookings_v3',
-  CAMPUS_JOBS: 'campusplug_jobs_v3',
-  JOB_APPLICATIONS: 'campusplug_job_apps_v3',
-  CAMPUS_EVENTS: 'campusplug_events_v3',
-  EVENT_TICKETS: 'campusplug_event_tickets_v3',
-  COMMUNITIES: 'campusplug_communities_v3',
-  COMMUNITY_POSTS: 'campusplug_community_posts_v3',
-  COMMUNITY_COMMENTS: 'campusplug_community_comments_v3',
-  BUSINESSES: 'campusplug_businesses_v3',
-  SUBSCRIPTION_PLANS: 'campusplug_sub_plans_v3',
-  USER_SUBSCRIPTIONS: 'campusplug_user_subs_v3',
-  AD_CAMPAIGNS: 'campusplug_ad_campaigns_v3',
-  ANNOUNCEMENTS: 'campusplug_announcements_v3',
-  SUPPORT_TICKETS: 'campusplug_support_tickets_v3',
-  FEATURE_FLAGS: 'campusplug_feature_flags_v3',
-  ADMIN_USERS: 'campusplug_admin_users_v4',
-  SAVED_ACCOUNTS: 'campusplug_saved_accounts_v2',
-  STUDY_RESOURCES: 'campusplug_study_resources_v1',
-  STUDY_FLASHCARDS: 'campusplug_study_flashcards_v1',
-  STUDYGEN_HISTORY: 'campusplug_studygen_history_v1',
-  INITIALIZED: 'campusplug_initialized_v5',
+  SERVICE_CATEGORIES: 'campuscore_service_cats_v3',
+  SERVICES: 'campuscore_services_v3',
+  SERVICE_REQUESTS: 'campuscore_service_reqs_v3',
+  BOOKINGS: 'campuscore_bookings_v3',
+  CAMPUS_JOBS: 'campuscore_jobs_v3',
+  JOB_APPLICATIONS: 'campuscore_job_apps_v3',
+  CAMPUS_EVENTS: 'campuscore_events_v3',
+  EVENT_TICKETS: 'campuscore_event_tickets_v3',
+  COMMUNITIES: 'campuscore_communities_v3',
+  COMMUNITY_POSTS: 'campuscore_community_posts_v3',
+  COMMUNITY_COMMENTS: 'campuscore_community_comments_v3',
+  BUSINESSES: 'campuscore_businesses_v3',
+  SUBSCRIPTION_PLANS: 'campuscore_sub_plans_v3',
+  USER_SUBSCRIPTIONS: 'campuscore_user_subs_v3',
+  AD_CAMPAIGNS: 'campuscore_ad_campaigns_v3',
+  ANNOUNCEMENTS: 'campuscore_announcements_v3',
+  SUPPORT_TICKETS: 'campuscore_support_tickets_v3',
+  FEATURE_FLAGS: 'campuscore_feature_flags_v3',
+  ADMIN_USERS: 'campuscore_admin_users_v4',
+  SAVED_ACCOUNTS: 'campuscore_saved_accounts_v2',
+  STUDY_RESOURCES: 'campuscore_study_resources_v1',
+  STUDY_FLASHCARDS: 'campuscore_study_flashcards_v1',
+  STUDYGEN_HISTORY: 'campuscore_studygen_history_v1',
+  INITIALIZED: 'campuscore_initialized_v5',
 };
 
 // Safe in-memory fallback store for iOS Safari Private Browsing / Lockdown mode / QuotaExceededError
@@ -223,7 +223,7 @@ function setItem<T>(key: string, value: T): void {
       pendingDispatches[key] = window.setTimeout(() => {
         delete pendingDispatches[key];
         try {
-          window.dispatchEvent(new CustomEvent('campusplug_storage_update', { detail: { key } }));
+          window.dispatchEvent(new CustomEvent('campuscore_storage_update', { detail: { key } }));
         } catch {
           // ignore event dispatch errors on older WebKit
         }
@@ -265,7 +265,7 @@ export class StorageService {
 
     // Dynamic one-time migration & demo data purge (checked via version flag to prevent infinite loops)
     const MIGRATION_VERSION = 'v9_uniosun_complete_faculties_and_departments';
-    const currentMigration = safeGetRaw('campusplug_migration_ver');
+    const currentMigration = safeGetRaw('campuscore_migration_ver');
 
     if (currentMigration !== MIGRATION_VERSION) {
       try {
@@ -3534,7 +3534,7 @@ export class StorageService {
       attendeeAvatar: attendee.avatar,
       pricePaid: event.ticketPrice,
       paymentReference: event.isPaid ? `PAY_TKT_${Date.now()}` : undefined,
-      qrCodeData: `CAMPUSPLUG:TICKET:${ticketCode}:${event.id}:${attendee.id}`,
+      qrCodeData: `CAMPUSCORE:TICKET:${ticketCode}:${event.id}:${attendee.id}`,
       status: 'valid',
       createdAt: new Date().toISOString(),
     };
@@ -4337,7 +4337,7 @@ export class StorageService {
       attendee = {
         id: attendeeOrUserId,
         name: nameArg || 'Campus Student',
-        email: emailArg || 'student@campusplug.ng',
+        email: emailArg || 'student@campuscore.ng',
         avatar: avatarArg || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&auto=format&fit=crop&q=80',
       };
     } else {

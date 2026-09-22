@@ -32,7 +32,7 @@ export const CreateAdCampaignModal: React.FC<CreateAdCampaignModalProps> = ({
   const [title, setTitle] = useState('');
   const [placement, setPlacement] = useState<AdPlacement>('feed_sponsor');
   const [campusId, setCampusId] = useState(currentUser?.campusId || campuses[0]?.id || 'campus-osogbo');
-  const [targetUrl, setTargetUrl] = useState('https://campusplug.app');
+  const [targetUrl, setTargetUrl] = useState('https://campuscore.app');
   const [imageUrl, setImageUrl] = useState(
     'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=1000&auto=format&fit=crop&q=80'
   );

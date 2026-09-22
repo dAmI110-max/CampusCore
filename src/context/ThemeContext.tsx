@@ -9,7 +9,7 @@ interface ThemeContextType {
   toggleTheme: () => void;
 }
 
-const THEME_STORAGE_KEY = 'campusplug_theme_mode';
+const THEME_STORAGE_KEY = 'campuscore_theme_mode';
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 

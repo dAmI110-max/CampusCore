@@ -57,7 +57,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
       StorageService.createReport({
         reporterId: currentUser?.id || 'usr-anonymous',
         reporterName: currentUser?.fullName || 'Anonymous Student',
-        reporterEmail: currentUser?.email || 'anonymous@campusplug.ng',
+        reporterEmail: currentUser?.email || 'anonymous@campuscore.ng',
         productId: targetType === 'product' ? targetId : undefined,
         productTitle: targetType === 'product' ? targetTitle : undefined,
         accommodationId: targetType === 'accommodation' ? targetId : undefined,

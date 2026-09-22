@@ -33,7 +33,7 @@ export const ServiceDeliveryModal: React.FC<ServiceDeliveryModalProps> = ({
   const [deliveryNotes, setDeliveryNotes] = useState(
     'I have completed the requested deliverables according to your specifications. Please find the work summary and files below.'
   );
-  const [workUrl, setWorkUrl] = useState('https://drive.google.com/drive/folders/campusplug-demo-delivery');
+  const [workUrl, setWorkUrl] = useState('https://drive.google.com/drive/folders/campuscore-demo-delivery');
   const [submitting, setSubmitting] = useState(false);
 
   if (!isOpen || !request) return null;

@@ -53,8 +53,8 @@ export const CommunityDetailView: React.FC<CommunityDetailViewProps> = ({
   useEffect(() => {
     loadPosts();
     const handleUpdate = () => loadPosts();
-    window.addEventListener('campusplug_storage_update', handleUpdate);
-    return () => window.removeEventListener('campusplug_storage_update', handleUpdate);
+    window.addEventListener('campuscore_storage_update', handleUpdate);
+    return () => window.removeEventListener('campuscore_storage_update', handleUpdate);
   }, [community.id, currentUser?.id]);
 
   const handleToggleJoin = () => {
