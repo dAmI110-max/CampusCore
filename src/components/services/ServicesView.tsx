@@ -35,6 +35,7 @@ import {
   ChevronDown,
   Sparkles,
 } from 'lucide-react';
+import { getCategoryLucideIcon } from '../../utils/categoryIcons';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface ServicesViewProps {
@@ -242,20 +243,23 @@ export const ServicesView: React.FC<ServicesViewProps> = ({
             >
               All Categories
             </button>
-            {categories.map((c) => (
-              <button
-                key={c.id}
-                onClick={() => setSelectedCategory(c.id)}
-                className={`px-4 py-2 rounded-full text-xs font-semibold transition-all flex items-center gap-1.5 whitespace-nowrap flex-shrink-0 ${
-                  selectedCategory === c.id
-                    ? 'bg-indigo-600 text-white shadow-sm'
-                    : 'bg-white border border-slate-200 text-slate-700 hover:border-indigo-300 hover:bg-indigo-50/50'
-                }`}
-              >
-                <span>{c.icon}</span>
-                <span>{c.name}</span>
-              </button>
-            ))}
+            {categories.map((c) => {
+              const IconComp = getCategoryLucideIcon(c);
+              return (
+                <button
+                  key={c.id}
+                  onClick={() => setSelectedCategory(c.id)}
+                  className={`px-4 py-2 rounded-full text-xs font-semibold transition-all flex items-center gap-1.5 whitespace-nowrap flex-shrink-0 ${
+                    selectedCategory === c.id
+                      ? 'bg-indigo-600 text-white shadow-sm'
+                      : 'bg-white border border-slate-200 text-slate-700 hover:border-indigo-300 hover:bg-indigo-50/50'
+                  }`}
+                >
+                  <IconComp className="w-3.5 h-3.5" />
+                  <span>{c.name}</span>
+                </button>
+              );
+            })}
           </div>
 
           {/* Search & Filter Bar */}

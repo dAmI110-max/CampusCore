@@ -3,7 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { StudyGenMessage, StudyGenMode } from '../../types';
 import { StorageService } from '../../services/storageService';
-import { getSupabase } from '../../lib/supabase';
+import { getActiveAuthToken } from '../../services/authSession';
 import {
   Sparkles,
   Send,
@@ -21,11 +21,15 @@ import {
   AlertCircle,
   RefreshCw,
   RotateCcw,
+  ShieldCheck,
+  Lock,
+  ArrowRight,
 } from 'lucide-react';
 
 interface StudyGenAIProps {
   onBack?: () => void;
   onNavigateToResources?: () => void;
+  onOpenAuth?: (mode?: 'login' | 'signup') => void;
 }
 
 const QUICK_PROMPT_CHIPS = [
@@ -209,11 +213,10 @@ function renderInlineFormatting(text: string): React.ReactNode {
   });
 }
 
-export const StudyGenAI: React.FC<StudyGenAIProps> = ({ onBack, onNavigateToResources }) => {
+export const StudyGenAI: React.FC<StudyGenAIProps> = ({ onBack, onNavigateToResources, onOpenAuth }) => {
   const { currentUser } = useAuth();
   const { success, error: toastError } = useToast();
 
-  const userId = currentUser?.id || 'guest_student';
   const [selectedMode, setSelectedMode] = useState<StudyGenMode>('general');
   const [courseCode, setCourseCode] = useState('');
   const [inputQuery, setInputQuery] = useState('');
@@ -226,13 +229,20 @@ export const StudyGenAI: React.FC<StudyGenAIProps> = ({ onBack, onNavigateToReso
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const isFreePhase1 = StorageService.isStudyGenFree();
 
-  // Load history on mount
+  // Automatically load personal history whenever currentUser is synced
   useEffect(() => {
-    const saved = StorageService.getStudyGenHistory(userId);
-    if (saved && saved.length > 0) {
-      setMessages(saved);
+    if (currentUser) {
+      const saved = StorageService.getStudyGenHistory(currentUser.id);
+      if (saved && saved.length > 0) {
+        setMessages(saved);
+      } else {
+        setMessages([]);
+      }
+      setApiError(null);
+    } else {
+      setMessages([]);
     }
-  }, [userId]);
+  }, [currentUser?.id]);
 
   // Scroll to bottom on new message
   useEffect(() => {
@@ -247,11 +257,11 @@ export const StudyGenAI: React.FC<StudyGenAIProps> = ({ onBack, onNavigateToReso
     setApiError(null);
     setLastFailedPrompt(null);
 
-    // StudyGen now requires a signed-in session (the server enforces this too —
-    // this check just avoids a wasted request and gives a clearer message).
+    // StudyGen requires an active signed-in student account to prevent AI credit abuse
     if (!currentUser) {
-      setApiError('Please sign in to use StudyGen AI.');
+      setApiError('Please sign in with your student account to use StudyGen AI.');
       setLastFailedPrompt(queryToSend);
+      if (onOpenAuth) onOpenAuth('login');
       return;
     }
 
@@ -270,16 +280,14 @@ export const StudyGenAI: React.FC<StudyGenAIProps> = ({ onBack, onNavigateToReso
     setIsLoading(true);
 
     try {
-      // Secure server-side call to /api/studygen — requires the caller's Supabase
-      // session token so the server can verify they're actually signed in.
-      const client = getSupabase();
-      const { data: sessionData } = client ? await client.auth.getSession() : { data: { session: null } };
-      const accessToken = sessionData?.session?.access_token;
+      // Automatically sync session and retrieve active auth token for the user
+      const accessToken = await getActiveAuthToken(currentUser);
 
       if (!accessToken) {
-        setApiError('Your session has expired. Please sign in again.');
+        setApiError('Unable to synchronize your session. Please sign in to verify your account.');
         setLastFailedPrompt(queryToSend);
         setIsLoading(false);
+        if (onOpenAuth) onOpenAuth('login');
         return;
       }
 
@@ -301,7 +309,7 @@ export const StudyGenAI: React.FC<StudyGenAIProps> = ({ onBack, onNavigateToReso
       });
 
       if (response.status === 401) {
-        throw new Error('Please sign in to use StudyGen AI.');
+        throw new Error('Your session has expired. Please sign in again.');
       }
       if (!response.ok) {
         const errBody = await response.json().catch(() => null);
@@ -329,10 +337,9 @@ export const StudyGenAI: React.FC<StudyGenAIProps> = ({ onBack, onNavigateToReso
 
       const updatedAll = [...newHistory, aiMsg];
       setMessages(updatedAll);
-      StorageService.saveStudyGenHistory(userId, updatedAll);
+      StorageService.saveStudyGenHistory(currentUser.id, updatedAll);
     } catch (err: any) {
       console.error('StudyGen AI Request Failed:', err);
-      // ONLY set error when request genuinely failed
       setApiError(err?.message || 'StudyGen is currently unavailable. Please try again later.');
       setLastFailedPrompt(queryToSend);
     } finally {
@@ -356,8 +363,9 @@ export const StudyGenAI: React.FC<StudyGenAIProps> = ({ onBack, onNavigateToReso
   };
 
   const handleClearHistory = () => {
+    if (!currentUser) return;
     if (window.confirm('Are you sure you want to clear your StudyGen conversation history?')) {
-      StorageService.clearStudyGenHistory(userId);
+      StorageService.clearStudyGenHistory(currentUser.id);
       setMessages([]);
       setApiError(null);
       success('Study conversation cleared.');
@@ -444,6 +452,45 @@ export const StudyGenAI: React.FC<StudyGenAIProps> = ({ onBack, onNavigateToReso
         })}
       </div>
 
+      {/* Synced Student Account Status Banner */}
+      {currentUser ? (
+        <div className="bg-emerald-50/90 dark:bg-emerald-950/40 border-b border-emerald-200/70 dark:border-emerald-800/60 px-4 py-2 flex items-center justify-between text-xs">
+          <div className="flex items-center gap-2 truncate">
+            <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+            <span className="font-bold text-emerald-900 dark:text-emerald-200 truncate">
+              Synced with {currentUser.fullName}
+            </span>
+            <span className="hidden sm:inline text-emerald-700 dark:text-emerald-400 text-[11px] truncate">
+              • {[currentUser.departmentName || currentUser.facultyName, currentUser.level].filter(Boolean).join(' • ') || 'Verified Student'}
+            </span>
+          </div>
+          <div className="flex items-center gap-1.5 shrink-0 text-[11px] font-bold text-emerald-800 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-900/60 px-2.5 py-0.5 rounded-full">
+            <ShieldCheck className="w-3 h-3" />
+            <span>AI Credits Protected</span>
+          </div>
+        </div>
+      ) : (
+        <div className="bg-amber-50/90 dark:bg-amber-950/40 border-b border-amber-200/70 dark:border-amber-800/60 px-4 py-2 flex items-center justify-between text-xs">
+          <div className="flex items-center gap-2 truncate text-amber-900 dark:text-amber-200">
+            <Lock className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+            <span className="font-bold truncate">Student Sign-In Required</span>
+            <span className="hidden sm:inline text-amber-700 dark:text-amber-300 text-[11px] truncate">
+              • Sign in to protect campus AI credits & personalize answers
+            </span>
+          </div>
+          {onOpenAuth && (
+            <button
+              type="button"
+              onClick={() => onOpenAuth('login')}
+              className="flex items-center gap-1 text-[11px] font-bold text-white bg-amber-600 hover:bg-amber-700 px-2.5 py-0.5 rounded-full transition-colors cursor-pointer shrink-0"
+            >
+              <span>Sign In</span>
+              <ArrowRight className="w-3 h-3" />
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Chat Messages Body */}
       <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
         {messages.length === 0 ? (
@@ -467,6 +514,12 @@ export const StudyGenAI: React.FC<StudyGenAIProps> = ({ onBack, onNavigateToReso
                 <button
                   key={idx}
                   onClick={() => {
+                    if (!currentUser) {
+                      setApiError('Please sign in with your student account to use StudyGen AI.');
+                      if (onOpenAuth) onOpenAuth('login');
+                      toastError('Please sign in with your student account to use StudyGen AI.');
+                      return;
+                    }
                     setSelectedMode(chip.mode);
                     handleSend(chip.prompt);
                   }}
@@ -482,6 +535,44 @@ export const StudyGenAI: React.FC<StudyGenAIProps> = ({ onBack, onNavigateToReso
                 </button>
               ))}
             </div>
+
+            {/* Unauthenticated Sign-In Required Notice */}
+            {!currentUser && (
+              <div className="max-w-xl mx-auto mt-4 p-4 rounded-2xl bg-amber-50/90 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-left space-y-2.5">
+                <div className="flex items-start gap-2.5">
+                  <div className="w-7 h-7 rounded-xl bg-amber-100 dark:bg-amber-900/60 text-amber-700 dark:text-amber-300 flex items-center justify-center shrink-0">
+                    <Lock className="w-3.5 h-3.5" />
+                  </div>
+                  <div className="text-xs">
+                    <span className="font-bold text-amber-950 dark:text-amber-200">
+                      Sign in required to protect campus AI credits:
+                    </span>
+                    <p className="text-[11px] text-amber-800 dark:text-amber-300 mt-0.5 leading-relaxed">
+                      Every study query automatically syncs with your course profile and academic level. Anonymous visitors cannot access StudyGen AI.
+                    </p>
+                  </div>
+                </div>
+                {onOpenAuth && (
+                  <div className="flex items-center gap-2 pt-1 pl-9">
+                    <button
+                      type="button"
+                      onClick={() => onOpenAuth('login')}
+                      className="px-3 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs flex items-center gap-1 transition-colors cursor-pointer"
+                    >
+                      <span>Sign In</span>
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onOpenAuth('signup')}
+                      className="px-3 py-1.5 rounded-xl bg-white dark:bg-slate-800 border border-amber-300 dark:border-amber-700 text-amber-900 dark:text-amber-200 font-bold text-xs hover:bg-amber-100/50 dark:hover:bg-slate-700 transition-colors cursor-pointer"
+                    >
+                      Create Account
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         ) : (
           messages.map((msg) => {
@@ -570,17 +661,28 @@ export const StudyGenAI: React.FC<StudyGenAIProps> = ({ onBack, onNavigateToReso
             <div className="w-8 h-8 rounded-2xl bg-rose-100 dark:bg-rose-950/80 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0">
               <AlertCircle className="w-4 h-4" />
             </div>
-            <div className="bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-rose-900 dark:text-rose-200 rounded-3xl rounded-tl-xs p-4 shadow-xs space-y-2">
-              <p className="text-xs font-bold">{apiError}</p>
-              {lastFailedPrompt && (
-                <button
-                  onClick={() => handleSend(lastFailedPrompt)}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-600 text-white text-xs font-bold hover:bg-rose-700 transition-colors cursor-pointer"
-                >
-                  <RotateCcw className="w-3 h-3" />
-                  <span>Retry Question</span>
-                </button>
-              )}
+            <div className="bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-rose-900 dark:text-rose-200 rounded-3xl rounded-tl-xs p-4 shadow-xs space-y-2.5">
+              <p className="text-xs font-bold leading-relaxed">{apiError}</p>
+              <div className="flex flex-wrap items-center gap-2">
+                {lastFailedPrompt && currentUser && (
+                  <button
+                    onClick={() => handleSend(lastFailedPrompt)}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-600 text-white text-xs font-bold hover:bg-rose-700 transition-colors cursor-pointer"
+                  >
+                    <RotateCcw className="w-3 h-3" />
+                    <span>Retry Question</span>
+                  </button>
+                )}
+                {(!currentUser || apiError.toLowerCase().includes('sign in') || apiError.toLowerCase().includes('session')) && onOpenAuth && (
+                  <button
+                    onClick={() => onOpenAuth('login')}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-600 text-white text-xs font-bold hover:bg-indigo-700 transition-colors cursor-pointer"
+                  >
+                    <Lock className="w-3 h-3" />
+                    <span>Sign In to Continue</span>
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         )}
@@ -608,22 +710,44 @@ export const StudyGenAI: React.FC<StudyGenAIProps> = ({ onBack, onNavigateToReso
               type="text"
               value={inputQuery}
               onChange={(e) => setInputQuery(e.target.value)}
+              onFocus={() => {
+                if (!currentUser && onOpenAuth) {
+                  onOpenAuth('login');
+                  toastError('Please sign in with your student account to use StudyGen AI.');
+                }
+              }}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
                   e.preventDefault();
+                  if (!currentUser) {
+                    onOpenAuth?.('login');
+                    toastError('Please sign in with your student account to use StudyGen AI.');
+                    return;
+                  }
                   handleSend();
                 }
               }}
-              placeholder="Ask StudyGen AI any university problem, past question, or topic..."
+              placeholder={
+                currentUser
+                  ? `Ask StudyGen AI about ${currentUser.departmentName || 'your course'}, calculations, or exams...`
+                  : 'Please sign in with your student account to use StudyGen AI...'
+              }
               className="w-full pl-4 pr-12 py-2.5 sm:py-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-xs sm:text-sm font-medium text-slate-800 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20 outline-none"
             />
 
             <button
-              onClick={() => handleSend()}
-              disabled={!inputQuery.trim() || isLoading}
+              onClick={() => {
+                if (!currentUser) {
+                  onOpenAuth?.('login');
+                  toastError('Please sign in with your student account to use StudyGen AI.');
+                  return;
+                }
+                handleSend();
+              }}
+              disabled={isLoading || (currentUser && !inputQuery.trim())}
               className="absolute right-1.5 top-1/2 -translate-y-1/2 p-2 rounded-xl bg-cyan-600 hover:bg-cyan-700 disabled:bg-slate-200 dark:disabled:bg-slate-800 text-white disabled:text-slate-400 dark:disabled:text-slate-600 transition-colors cursor-pointer"
             >
-              <Send className="w-4 h-4" />
+              {currentUser ? <Send className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
             </button>
           </div>
         </div>

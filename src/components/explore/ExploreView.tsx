@@ -14,6 +14,7 @@ import {
   ArrowLeft,
   GraduationCap,
   Megaphone,
+  HeartHandshake,
 } from 'lucide-react';
 import { AppViewMode } from '../layout/Navbar';
 import { StorageService } from '../../services/storageService';
@@ -136,7 +137,7 @@ export const ExploreView: React.FC<ExploreViewProps> = ({
       title: 'Roommate Finder',
       tagline: 'Find compatible, verified student roommates to split rent',
       count: `${roommatesCount} looking for flatmates`,
-      icon: Users,
+      icon: HeartHandshake,
       color: 'from-purple-600 to-indigo-600',
       bgColor: 'bg-purple-50',
       textColor: 'text-purple-600',

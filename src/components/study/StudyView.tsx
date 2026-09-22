@@ -335,6 +335,7 @@ export const StudyView: React.FC<StudyViewProps> = ({
       {activeTab === 'studygen' && (
         <StudyGenAI
           onBack={() => setActiveTab('hub')}
+          onOpenAuth={onOpenAuth}
           onNavigateToResources={() => {
             setActiveCategory('past_question');
             setActiveTab('resources');

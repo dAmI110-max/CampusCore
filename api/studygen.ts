@@ -10,18 +10,14 @@ function getGeminiClient(): GoogleGenAI | null {
   return geminiClient;
 }
 
-// NOTE ON MODELS (checked Sep 2026):
-// - "gemini-3.7-flash" (previously in this list) is not a real Gemini model name — every
-//   call to it was failing and silently falling through to the next candidate. Removed.
-// - "gemini-2.5-flash" / "gemini-2.5-flash-lite" are stable but Google has scheduled the
-//   entire Gemini 2.5 line for shutdown on 16 October 2026. Kept as fallbacks for now —
-//   swap/remove them after that date.
-// - "gemini-flash-latest" is an alias Google keeps pointed at their current recommended
-//   Flash model, so it's the most future-proof default and is tried first.
+// High-performance models according to Gemini API guidance:
+// - gemini-flash-latest: Auto-points to the latest recommended Flash model
+// - gemini-3.8-flash: Fast, high intelligence model for general university Q&A
+// - gemini-3.1-flash-lite: Lightweight, reliable model for instant answers
 const CANDIDATE_MODELS = [
   'gemini-flash-latest',
-  'gemini-2.5-flash',
-  'gemini-2.5-flash-lite',
+  'gemini-3.8-flash',
+  'gemini-3.1-flash-lite',
 ];
 
 function buildSystemInstruction(opts: {
