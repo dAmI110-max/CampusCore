@@ -159,11 +159,11 @@ const STORAGE_KEYS = {
   SUPPORT_TICKETS: 'campuscore_support_tickets_v3',
   FEATURE_FLAGS: 'campuscore_feature_flags_v3',
   ADMIN_USERS: 'campuscore_admin_users_v4',
-  SAVED_ACCOUNTS: 'campuscore_saved_accounts_v2',
+  SAVED_ACCOUNTS: 'campuscore_saved_accounts_v4',
   STUDY_RESOURCES: 'campuscore_study_resources_v1',
   STUDY_FLASHCARDS: 'campuscore_study_flashcards_v1',
   STUDYGEN_HISTORY: 'campuscore_studygen_history_v1',
-  INITIALIZED: 'campuscore_initialized_v5',
+  INITIALIZED: 'campuscore_initialized_v6',
 };
 
 // Safe in-memory fallback store for iOS Safari Private Browsing / Lockdown mode / QuotaExceededError
@@ -327,9 +327,25 @@ export class StorageService {
 
         setItem(STORAGE_KEYS.USERS, cleanUsers);
 
-        // Clean saved accounts of prototype users
+        // Clean saved accounts of prototype users and wipe legacy auto-seeded accounts
+        try {
+          if (typeof window !== 'undefined' && window.localStorage) {
+            window.localStorage.removeItem('campuscore_saved_accounts_v1');
+            window.localStorage.removeItem('campuscore_saved_accounts_v2');
+            window.localStorage.removeItem('campuscore_saved_accounts_v3');
+          }
+        } catch {
+          // ignore
+        }
+
         const savedAccounts = getItem<UserProfile[]>(STORAGE_KEYS.SAVED_ACCOUNTS, []);
-        const cleanSavedAccounts = savedAccounts.filter((u) => !prototypeIds.has(u.id) && !u.id.startsWith('usr-tunde'));
+        const cleanSavedAccounts = savedAccounts.filter((u) => {
+          if (prototypeIds.has(u.id) || u.id.startsWith('usr-tunde')) return false;
+          // Never leave super admin accounts sitting in saved accounts on devices unless explicitly logged in
+          const isSuper = u.email?.toLowerCase() === this.SUPER_ADMIN_EMAIL.toLowerCase() ||
+            u.email?.toLowerCase() === this.SECONDARY_SUPER_ADMIN_EMAIL.toLowerCase();
+          return !isSuper;
+        });
         setItem(STORAGE_KEYS.SAVED_ACCOUNTS, cleanSavedAccounts);
 
         // If current user is a prototype user, reset current user ID
@@ -553,23 +569,18 @@ export class StorageService {
       }
     });
 
-    if (validated.length === 0 && allUsers.length > 0) {
-      const initialSeed = allUsers.slice(0, 3);
-      setItem(STORAGE_KEYS.SAVED_ACCOUNTS, initialSeed);
-      return initialSeed;
-    }
-
+    // Never auto-seed saved accounts! Saved accounts must only be present if a user explicitly signed in on this specific device.
     return validated;
   }
 
   static addSavedAccount(user: UserProfile): void {
     const saved = this.getSavedAccounts();
     const filtered = saved.filter(
-      (u) => u.id !== user.id && u.email.toLowerCase() !== user.email.toLowerCase()
+      (u) => u.id !== user.id && (u.email || '').toLowerCase() !== (user.email || '').toLowerCase()
     );
     filtered.unshift(user);
-    // Keep max 6 accounts on device
-    const capped = filtered.slice(0, 6);
+    // Keep max 5 accounts on device
+    const capped = filtered.slice(0, 5);
     setItem(STORAGE_KEYS.SAVED_ACCOUNTS, capped);
   }
 
@@ -627,9 +638,7 @@ export class StorageService {
     const clean = identifier.trim().toLowerCase();
     const stored = creds[clean];
     if (!stored) {
-      // For initial seeded demo users and super admins, allow login with any valid password (6+ chars)
-      const isKnownUser = this.getUserByIdentifier(clean);
-      return !!isKnownUser && password.length >= 1;
+      return false;
     }
     return stored === password;
   }

@@ -384,10 +384,9 @@ export class SupabaseService {
       }
 
       if (localMatch) {
-        // Validate credentials if saved, or allow seeded demo users/super admins
+        // Validate credentials if saved (never bypass password checks)
         const isValid = StorageService.validateUserCredential(targetEmail, password) ||
-          StorageService.validateUserCredential(cleanInput, password) ||
-          password.length >= 1;
+          StorageService.validateUserCredential(cleanInput, password);
 
         if (isValid) {
           const statusLower = (localMatch.accountStatus || '').toLowerCase();
@@ -407,7 +406,7 @@ export class SupabaseService {
 
       return {
         success: false,
-        message: 'Invalid email or password. Please verify your credentials or select an account below.',
+        message: 'Invalid email or password. Please verify your credentials.',
       };
     } catch (err: any) {
       return { success: false, message: err.message || 'Login failed' };

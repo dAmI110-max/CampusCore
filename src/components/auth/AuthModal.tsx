@@ -19,8 +19,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   onClose,
   initialMode = 'login',
 }) => {
-  const { login, loginWithSavedAccount, signup, googleLogin, savedAccounts, removeSavedAccount, resetPassword, isSupabaseConnected } = useAuth();
+  const { login, signup, googleLogin, savedAccounts, removeSavedAccount, resetPassword, isSupabaseConnected } = useAuth();
   const { success, error, info } = useToast();
+
+  // Security: Never display Super Admin accounts in shared device saved lists
+  const visibleSavedAccounts = (savedAccounts || []).filter(
+    (a) => !StorageService.isSuperAdmin(a) && a.role !== 'SUPER_ADMIN' && a.role !== 'ADMIN'
+  );
 
   const [mode, setMode] = useState<'login' | 'signup' | 'reset'>(initialMode);
   const [loading, setLoading] = useState(false);
@@ -104,18 +109,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     }
   };
 
-  const handleSavedAccountClick = async (account: UserProfile) => {
-    setLoading(true);
-    const res = await loginWithSavedAccount(account.id);
-    setLoading(false);
-    if (res.success) {
-      success(`Welcome back, ${account.fullName.split(' ')[0]}!`);
-      onClose();
-    } else {
-      setLoginEmail(account.email || account.username);
-      setMode('login');
-      info(`Selected ${account.fullName}. Please enter your password to sign in.`);
-    }
+  const handleSavedAccountClick = (account: UserProfile) => {
+    setLoginEmail(account.email || account.username);
+    setLoginPassword('');
+    setMode('login');
+    info(`Selected ${account.fullName}. Please enter your password to sign in.`);
   };
 
   const handleSignupSubmit = async (e: React.FormEvent) => {
@@ -356,14 +354,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               </form>
 
               {/* Personalized Saved Accounts on this Device */}
-              {savedAccounts && savedAccounts.length > 0 && (
+              {visibleSavedAccounts && visibleSavedAccounts.length > 0 && (
                 <div className="pt-4 border-t border-slate-100 dark:border-slate-800">
                   <div className="text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-2 flex items-center justify-between">
                     <span>Saved accounts on this device:</span>
                   </div>
                   <div className="space-y-1.5 max-h-36 overflow-y-auto">
-                    {savedAccounts.map((account) => {
-                      const isSuper = account.email.toLowerCase() === StorageService.SUPER_ADMIN_EMAIL.toLowerCase() || account.role === 'SUPER_ADMIN';
+                    {visibleSavedAccounts.map((account) => {
                       return (
                         <div
                           key={account.id}
@@ -382,14 +379,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                             <div className="truncate">
                               <div className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5 truncate">
                                 {account.fullName}
-                                {isSuper && (
-                                  <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-rose-100 dark:bg-rose-900/60 text-rose-700 dark:text-rose-300 font-bold shrink-0">
-                                    Super Admin
-                                  </span>
-                                )}
                               </div>
                               <div className="text-[10px] text-slate-500 dark:text-slate-400 truncate">
-                                {account.email}
+                                {account.email || `@${account.username}`}
                               </div>
                             </div>
                           </button>

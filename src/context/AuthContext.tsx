@@ -334,6 +334,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       };
     }
 
+    if (user.role === 'SUPER_ADMIN' || user.role === 'ADMIN' || StorageService.isSuperAdmin(user)) {
+      return {
+        success: false,
+        message: 'Please enter your password to sign in to this administrator account.',
+      };
+    }
+
     if (user.accountStatus === 'banned' || user.accountStatus === 'suspended') {
       return {
         success: false,
