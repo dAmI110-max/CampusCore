@@ -82,7 +82,47 @@ const MainApp: React.FC = () => {
   const { success } = useToast();
 
   // Navigation State
-  const [currentView, setCurrentView] = useState<AppViewMode>('home');
+  const VALID_VIEWS: AppViewMode[] = [
+    'home', 'explore', 'study', 'marketplace', 'accommodation', 'roommates',
+    'orders', 'wallet', 'messages', 'dashboard', 'admin', 'services', 'jobs',
+    'events', 'communities', 'businesses', 'ads',
+  ];
+
+  // Navigation State — initialized from the URL so a page refresh (or a shared/
+  // bookmarked link) restores whatever section the user was on, instead of
+  // always dropping back to the homepage.
+  const [currentView, setCurrentView] = useState<AppViewMode>(() => {
+    if (typeof window === 'undefined') return 'home';
+    const viewParam = new URLSearchParams(window.location.search).get('view');
+    return VALID_VIEWS.includes(viewParam as AppViewMode) ? (viewParam as AppViewMode) : 'home';
+  });
+  // Keep the URL's ?view= in sync with navigation so a refresh restores the
+  // current section instead of resetting to home. Uses replaceState (not
+  // pushState) so normal in-app navigation doesn't spam the browser's back
+  // button history — but we still listen for popstate so the OS/browser back
+  // gesture works if the URL changes some other way (e.g. a shared link).
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    if (currentView === 'home') {
+      params.delete('view');
+    } else {
+      params.set('view', currentView);
+    }
+    const query = params.toString();
+    const newUrl = `${window.location.pathname}${query ? `?${query}` : ''}${window.location.hash}`;
+    window.history.replaceState({}, '', newUrl);
+  }, [currentView]);
+
+  useEffect(() => {
+    const handlePopState = () => {
+      const viewParam = new URLSearchParams(window.location.search).get('view');
+      setCurrentView(VALID_VIEWS.includes(viewParam as AppViewMode) ? (viewParam as AppViewMode) : 'home');
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
   const [, setRefreshKey] = useState(0);
 
   // Active chat targeting

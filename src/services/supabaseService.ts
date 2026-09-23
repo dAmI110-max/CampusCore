@@ -507,9 +507,17 @@ export class SupabaseService {
         .select('*')
         .order('created_at', { ascending: false });
 
-      if (error || !data) return [];
+      if (error) {
+        // Previously silent — meant a broken query (missing table, RLS block, etc.)
+        // looked identical to "zero real signups" and admins never knew which one
+        // they were looking at.
+        console.error('fetchAllProfiles failed — admin dashboard will show demo data instead:', error.message);
+        return [];
+      }
+      if (!data) return [];
       return data.map((d) => this.mapDbProfileToUserProfile(d));
-    } catch {
+    } catch (err: any) {
+      console.error('fetchAllProfiles threw an exception:', err?.message);
       return [];
     }
   }

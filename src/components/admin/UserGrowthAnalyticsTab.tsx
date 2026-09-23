@@ -26,6 +26,7 @@ export const UserGrowthAnalyticsTab: React.FC = () => {
   const [analytics, setAnalytics] = useState(() => StorageService.getUserGrowthAnalytics('30d'));
   const [realUsers, setRealUsers] = useState<UserProfile[]>(() => StorageService.getUsers());
   const [isLoading, setIsLoading] = useState(false);
+  const [isShowingLiveData, setIsShowingLiveData] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -37,11 +38,18 @@ export const UserGrowthAnalyticsTab: React.FC = () => {
             SupabaseService.fetchUserGrowthAnalytics(timeframe),
             SupabaseService.fetchAllProfiles(),
           ]);
-          if (mounted && res && res.dataPoints.length > 0) {
-            setAnalytics(res);
-          }
+          // Only claim "live data" if we actually got real profiles back — an
+          // empty/failed fetch used to silently fall through to demo data with
+          // no way to tell the two apart. Check the browser console for a
+          // fetchAllProfiles error if this stays off when you expect real users.
           if (mounted && profiles && profiles.length > 0) {
             setRealUsers(profiles);
+            setIsShowingLiveData(true);
+          } else if (mounted) {
+            setIsShowingLiveData(false);
+          }
+          if (mounted && res && res.dataPoints.length > 0) {
+            setAnalytics(res);
           }
           if (mounted) setIsLoading(false);
           return;
@@ -52,6 +60,7 @@ export const UserGrowthAnalyticsTab: React.FC = () => {
       if (mounted) {
         setAnalytics(StorageService.getUserGrowthAnalytics(timeframe));
         setRealUsers(StorageService.getUsers());
+        setIsShowingLiveData(false);
         setIsLoading(false);
       }
     }
@@ -123,9 +132,15 @@ export const UserGrowthAnalyticsTab: React.FC = () => {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 p-6 rounded-3xl bg-slate-900 text-white shadow-xl">
         <div>
           <div className="flex items-center gap-2 mb-1">
-            <span className="px-2.5 py-0.5 rounded-full bg-emerald-400/20 text-emerald-300 text-[10px] font-black uppercase tracking-wider flex items-center gap-1 border border-emerald-400/30">
-              <Activity className="w-3 h-3 text-emerald-300" /> Real-time Platform Metrics
-            </span>
+            {isShowingLiveData ? (
+              <span className="px-2.5 py-0.5 rounded-full bg-emerald-400/20 text-emerald-300 text-[10px] font-black uppercase tracking-wider flex items-center gap-1 border border-emerald-400/30">
+                <Activity className="w-3 h-3 text-emerald-300" /> Live Platform Data
+              </span>
+            ) : (
+              <span className="px-2.5 py-0.5 rounded-full bg-amber-400/20 text-amber-300 text-[10px] font-black uppercase tracking-wider flex items-center gap-1 border border-amber-400/30">
+                <Activity className="w-3 h-3 text-amber-300" /> Demo Data — check console for fetch errors
+              </span>
+            )}
           </div>
           <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight flex items-center gap-2">
             <TrendingUp className="w-6 h-6 text-emerald-400" />

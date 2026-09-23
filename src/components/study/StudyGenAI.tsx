@@ -3,7 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { StudyGenMessage, StudyGenMode } from '../../types';
 import { StorageService } from '../../services/storageService';
-import { getActiveAuthToken } from '../../services/authSession';
+import { getSupabase } from '../../lib/supabase';
 import {
   Sparkles,
   Send,
@@ -280,8 +280,11 @@ export const StudyGenAI: React.FC<StudyGenAIProps> = ({ onBack, onNavigateToReso
     setIsLoading(true);
 
     try {
-      // Automatically sync session and retrieve active auth token for the user
-      const accessToken = await getActiveAuthToken(currentUser);
+      // Get the caller's real Supabase session token — the server verifies this
+      // cryptographically, so this must be a genuine Supabase-issued token.
+      const client = getSupabase();
+      const { data: sessionData } = client ? await client.auth.getSession() : { data: { session: null } };
+      const accessToken = sessionData?.session?.access_token;
 
       if (!accessToken) {
         setApiError('Unable to synchronize your session. Please sign in to verify your account.');
