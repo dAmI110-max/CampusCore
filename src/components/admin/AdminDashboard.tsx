@@ -67,14 +67,63 @@ export type AdminTab =
   | 'settings'
   | 'audit';
 
+const VALID_ADMIN_TABS: AdminTab[] = [
+  'overview',
+  'analytics',
+  'seller_funnel',
+  'admin_management',
+  'users',
+  'escrow',
+  'disputes',
+  'verifications',
+  'listings',
+  'study_resources',
+  'accommodation',
+  'reports',
+  'settings',
+  'audit',
+];
+
+function getStoredAdminTab(): AdminTab {
+  try {
+    if (typeof window !== 'undefined') {
+      const hashQuery = window.location.hash.includes('?') ? window.location.hash.split('?')[1] : '';
+      const params = new URLSearchParams(hashQuery || window.location.search);
+      const tabParam = params.get('tab') as AdminTab;
+      if (tabParam && VALID_ADMIN_TABS.includes(tabParam)) {
+        return tabParam;
+      }
+      const saved = window.localStorage.getItem('campuscore_admin_tab') as AdminTab;
+      if (saved && VALID_ADMIN_TABS.includes(saved)) {
+        return saved;
+      }
+    }
+  } catch {
+    // fallback
+  }
+  return 'overview';
+}
+
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   onProductClick,
   onAccommodationClick,
 }) => {
   const { currentUser, isSuperAdmin } = useAuth();
   const { success, error: showError } = useToast();
-  const [currentTab, setCurrentTab] = useState<AdminTab>('overview');
+  const [currentTab, setCurrentTab] = useState<AdminTab>(getStoredAdminTab);
   const [, setTick] = useState(0);
+
+  // Sync tab change with localStorage & URL hash query
+  useEffect(() => {
+    try {
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem('campuscore_admin_tab', currentTab);
+        window.location.hash = `#admin?tab=${currentTab}`;
+      }
+    } catch {
+      // ignore
+    }
+  }, [currentTab]);
 
   const [dbStats, setDbStats] = useState<any>(null);
   const [dbReports, setDbReports] = useState<Report[]>([]);

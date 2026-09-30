@@ -78,15 +78,25 @@ export const CreateProductModal: React.FC<CreateProductModalProps> = ({
         return;
       }
       if (isSupabaseConfigured()) {
-        const { url: uploadedUrl } = await uploadImageToSupabase(file, 'listings');
-        if (uploadedUrl) {
-          handleAddImage(uploadedUrl);
-          return;
+        try {
+          const { url: uploadedUrl } = await uploadImageToSupabase(file, 'listings');
+          if (uploadedUrl) {
+            handleAddImage(uploadedUrl);
+            return;
+          }
+        } catch {
+          // fallback to base64
         }
       }
-      // Create local object URL for preview
-      const localUrl = URL.createObjectURL(file);
-      handleAddImage(localUrl);
+      // Read as persistent Base64 Data URL so it survives page reloads
+      const reader = new FileReader();
+      reader.onload = (uploadEvent) => {
+        const dataUrl = uploadEvent.target?.result as string;
+        if (dataUrl) {
+          handleAddImage(dataUrl);
+        }
+      };
+      reader.readAsDataURL(file);
     }
   };
 

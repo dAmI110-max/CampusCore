@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { StorageService } from '../../services/storageService';
 import { Product } from '../../types';
@@ -29,6 +29,20 @@ interface UserDashboardProps {
 
 type DashboardTab = 'overview' | 'listings' | 'favorites' | 'profile';
 
+function getStoredUserTab(): DashboardTab {
+  try {
+    if (typeof window !== 'undefined') {
+      const saved = window.localStorage.getItem('campuscore_user_dashboard_tab') as DashboardTab;
+      if (saved && ['overview', 'listings', 'favorites', 'profile'].includes(saved)) {
+        return saved;
+      }
+    }
+  } catch {
+    // fallback
+  }
+  return 'overview';
+}
+
 export const UserDashboard: React.FC<UserDashboardProps> = ({
   onOpenCreateProduct,
   onOpenCreateAccommodation,
@@ -38,8 +52,18 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
   onNavigateToOrders,
 }) => {
   const { currentUser } = useAuth();
-  const [currentTab, setCurrentTab] = useState<DashboardTab>('overview');
+  const [currentTab, setCurrentTab] = useState<DashboardTab>(getStoredUserTab);
   const [, setTick] = useState(0);
+
+  useEffect(() => {
+    try {
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem('campuscore_user_dashboard_tab', currentTab);
+      }
+    } catch {
+      // ignore
+    }
+  }, [currentTab]);
 
   const forceRefresh = () => setTick((t) => t + 1);
 

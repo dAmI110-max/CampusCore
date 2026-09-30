@@ -138,28 +138,35 @@ export const UserModerationTab: React.FC<UserModerationTabProps> = ({ onRefresh 
   const fetchLiveUsers = useCallback(async () => {
     setIsLoading(true);
     try {
+      let combined: UserProfile[] = [];
       if (isSupabaseConfigured()) {
-        const dbUsers = await SupabaseService.fetchAllProfiles();
-        if (dbUsers && dbUsers.length > 0) {
-          // Merge with Super Admins if needed
-          const merged = [...dbUsers];
-          
-          // Ensure Super Admin status for designated emails
-          const finalUsers = merged.map((u) => {
-            const isSuper = SupabaseService.isSuperAdminEmail(u.email);
-            if (isSuper) {
-              return { ...u, role: 'SUPER_ADMIN' as const, sellerStatus: 'VERIFIED_SELLER' as const };
-            }
-            return u;
-          });
-
-          setUsers(finalUsers);
-          StorageService.syncProfilesFromSupabase(finalUsers);
-          setIsLoading(false);
-          return;
+        try {
+          const dbUsers = await SupabaseService.fetchAllProfiles();
+          if (dbUsers && dbUsers.length > 0) {
+            combined = [...dbUsers];
+          }
+        } catch {
+          // fallback
         }
       }
-      setUsers(StorageService.getUsers());
+
+      const localUsers = StorageService.getUsers();
+      localUsers.forEach((lu) => {
+        if (!combined.some((u) => u.id === lu.id || (u.email && lu.email && u.email.toLowerCase() === lu.email.toLowerCase()))) {
+          combined.push(lu);
+        }
+      });
+
+      const finalUsers = combined.map((u) => {
+        const isSuper = SupabaseService.isSuperAdminEmail(u.email);
+        if (isSuper) {
+          return { ...u, role: 'SUPER_ADMIN' as const, sellerStatus: 'VERIFIED_SELLER' as const };
+        }
+        return u;
+      });
+
+      setUsers(finalUsers);
+      StorageService.syncProfilesFromSupabase(finalUsers);
     } catch {
       setUsers(StorageService.getUsers());
     } finally {

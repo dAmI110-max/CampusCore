@@ -8,6 +8,9 @@ import paystackConfigHandler from "./api/payment/paystack/config";
 import paystackInitializeHandler from "./api/payment/paystack/initialize";
 import paystackVerifyHandler from "./api/payment/paystack/verify/[reference]";
 import healthHandler from "./api/health";
+import productsHandler from "./api/products";
+import usersHandler from "./api/users";
+import analyticsHandler from "./api/analytics";
 
 dotenv.config();
 
@@ -26,6 +29,9 @@ async function startServer() {
   app.post("/api/payment/paystack/initialize", paystackInitializeHandler);
   app.get("/api/payment/paystack/verify/:reference", paystackVerifyHandler);
   app.get("/api/health", healthHandler);
+  app.all("/api/products", productsHandler);
+  app.all("/api/users", usersHandler);
+  app.get("/api/analytics", analyticsHandler);
 
   // Vite middleware for dev or static serving for production
   if (process.env.NODE_ENV !== "production") {

@@ -318,12 +318,11 @@ export class StorageService {
         const daveUser = INITIAL_USERS[1];
 
         let cleanUsers = [...filteredUsers];
-        if (!cleanUsers.some((u) => u.email?.toLowerCase() === this.SUPER_ADMIN_EMAIL.toLowerCase())) {
-          cleanUsers.unshift(damilareUser);
-        }
-        if (!cleanUsers.some((u) => u.email?.toLowerCase() === this.SECONDARY_SUPER_ADMIN_EMAIL.toLowerCase())) {
-          cleanUsers.push(daveUser);
-        }
+        INITIAL_USERS.forEach((u) => {
+          if (!cleanUsers.some((cu) => cu.id === u.id || (cu.email && u.email && cu.email.toLowerCase() === u.email.toLowerCase()))) {
+            cleanUsers.push(u);
+          }
+        });
 
         setItem(STORAGE_KEYS.USERS, cleanUsers);
 
@@ -536,7 +535,18 @@ export class StorageService {
 
   // --- AUTH & USERS ---
   static getUsers(): UserProfile[] {
-    return getItem<UserProfile[]>(STORAGE_KEYS.USERS, INITIAL_USERS);
+    let users = getItem<UserProfile[]>(STORAGE_KEYS.USERS, INITIAL_USERS);
+    let modified = false;
+    INITIAL_USERS.forEach((iu) => {
+      if (!users.some((u) => u.id === iu.id || (u.email && iu.email && u.email.toLowerCase() === iu.email.toLowerCase()))) {
+        users.push(iu);
+        modified = true;
+      }
+    });
+    if (modified) {
+      setItem(STORAGE_KEYS.USERS, users);
+    }
+    return users;
   }
 
   static getCurrentUser(): UserProfile | null {
@@ -697,6 +707,15 @@ export class StorageService {
     
     // Automatically provision user wallet
     this.getWallet(newId);
+
+    // Sync to shared backend so Superadmin analytics across devices sees new user immediately
+    if (typeof window !== 'undefined') {
+      fetch('/api/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newUser),
+      }).catch(() => {});
+    }
 
     return newUser;
   }
@@ -1011,16 +1030,55 @@ export class StorageService {
     return { success: true, message: `Account status updated to ${status}.` };
   }
 
+  static async syncWithServer(): Promise<void> {
+    if (typeof window === 'undefined') return;
+    try {
+      const [prodRes, userRes] = await Promise.all([
+        fetch('/api/products').then((r) => r.json()).catch(() => null),
+        fetch('/api/users').then((r) => r.json()).catch(() => null),
+      ]);
+
+      if (prodRes?.success && Array.isArray(prodRes.products) && prodRes.products.length > 0) {
+        this.syncProductsFromSupabase(prodRes.products);
+      }
+      if (userRes?.success && Array.isArray(userRes.users) && userRes.users.length > 0) {
+        this.syncProfilesFromSupabase(userRes.users);
+      }
+    } catch {
+      // offline fallback
+    }
+  }
+
   static syncProfilesFromSupabase(profiles: UserProfile[]): void {
     if (profiles && profiles.length > 0) {
-      setItem(STORAGE_KEYS.USERS, profiles);
+      const current = this.getUsers();
+      const merged = [...current];
+      profiles.forEach((p) => {
+        const idx = merged.findIndex((m) => m.id === p.id || (m.email && p.email && m.email.toLowerCase() === p.email.toLowerCase()));
+        if (idx >= 0) {
+          merged[idx] = { ...merged[idx], ...p };
+        } else {
+          merged.push(p);
+        }
+      });
+      setItem(STORAGE_KEYS.USERS, merged);
     }
   }
 
   // --- PRODUCTS ---
   static syncProductsFromSupabase(products: Product[]): void {
-    if (products) {
-      setItem(STORAGE_KEYS.PRODUCTS, products);
+    if (products && products.length > 0) {
+      const current = this.getProducts();
+      const merged = [...current];
+      products.forEach((p) => {
+        const idx = merged.findIndex((m) => m.id === p.id);
+        if (idx >= 0) {
+          merged[idx] = { ...merged[idx], ...p };
+        } else {
+          merged.unshift(p);
+        }
+      });
+      setItem(STORAGE_KEYS.PRODUCTS, merged);
     }
   }
 
@@ -1110,6 +1168,15 @@ export class StorageService {
     products.unshift(newProduct);
     setItem(STORAGE_KEYS.PRODUCTS, products);
 
+    // Sync to shared backend so other users/devices see it and refresh never loses it
+    if (typeof window !== 'undefined') {
+      fetch('/api/products', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newProduct),
+      }).catch(() => {});
+    }
+
     // Send notification to seller
     this.createNotification({
       userId: newProduct.sellerId,
@@ -1140,6 +1207,9 @@ export class StorageService {
     const filtered = products.filter((p) => p.id !== id);
     if (filtered.length === products.length) return false;
     setItem(STORAGE_KEYS.PRODUCTS, filtered);
+    if (typeof window !== 'undefined') {
+      fetch(`/api/products?id=${encodeURIComponent(id)}`, { method: 'DELETE' }).catch(() => {});
+    }
     return true;
   }
 
