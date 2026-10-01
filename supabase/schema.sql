@@ -396,3 +396,69 @@ CREATE POLICY "Public can view avatar images" ON storage.objects FOR SELECT USIN
 CREATE POLICY "Authenticated users can upload avatars" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'avatars' AND auth.role() = 'authenticated');
 CREATE POLICY "Public can view listing images" ON storage.objects FOR SELECT USING (bucket_id = 'listings');
 CREATE POLICY "Authenticated users can upload listing images" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'listings' AND auth.role() = 'authenticated');
+
+-- ==========================================================
+-- BACKFILL EXISTING AUTH USERS INTO PROFILES TABLE
+-- ==========================================================
+INSERT INTO public.profiles (
+  id,
+  auth_user_id,
+  email,
+  full_name,
+  username,
+  avatar_url,
+  role,
+  seller_status,
+  seller_onboarding_completed,
+  university_id,
+  university_name,
+  campus_id,
+  campus_name,
+  faculty_id,
+  faculty_name,
+  department_id,
+  department_name,
+  level,
+  phone,
+  whatsapp,
+  bio,
+  verification_badge,
+  account_status,
+  created_at,
+  updated_at
+)
+SELECT
+  u.id,
+  u.id,
+  u.email,
+  COALESCE(u.raw_user_meta_data->>'full_name', u.raw_user_meta_data->>'name', split_part(u.email, '@', 1)),
+  COALESCE(NULLIF(u.raw_user_meta_data->>'username', ''), split_part(u.email, '@', 1) || '_' || substr(replace(u.id::text, '-', ''), 1, 4)),
+  COALESCE(u.raw_user_meta_data->>'avatar_url', 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=200&q=80'),
+  CASE WHEN (lower(u.email) = 'bhadmusoluwadamilare@gmail.com' OR lower(u.email) = 'davesbrown88@gmail.com') THEN 'SUPER_ADMIN'
+       ELSE COALESCE(u.raw_user_meta_data->>'role', 'STUDENT') END,
+  CASE WHEN (lower(u.email) = 'bhadmusoluwadamilare@gmail.com' OR lower(u.email) = 'davesbrown88@gmail.com') THEN 'VERIFIED_SELLER'
+       ELSE 'NOT_SELLER' END,
+  (lower(u.email) = 'bhadmusoluwadamilare@gmail.com' OR lower(u.email) = 'davesbrown88@gmail.com'),
+  COALESCE(u.raw_user_meta_data->>'university_id', 'uni-uniosun'),
+  COALESCE(u.raw_user_meta_data->>'university_name', 'Osun State University'),
+  COALESCE(u.raw_user_meta_data->>'campus_id', 'campus-osogbo'),
+  COALESCE(u.raw_user_meta_data->>'campus_name', 'Osogbo Main Campus'),
+  u.raw_user_meta_data->>'faculty_id',
+  u.raw_user_meta_data->>'faculty_name',
+  u.raw_user_meta_data->>'department_id',
+  u.raw_user_meta_data->>'department_name',
+  COALESCE(u.raw_user_meta_data->>'level', '100L'),
+  u.raw_user_meta_data->>'phone',
+  u.raw_user_meta_data->>'whatsapp',
+  CASE WHEN (lower(u.email) = 'bhadmusoluwadamilare@gmail.com' OR lower(u.email) = 'davesbrown88@gmail.com') THEN 'Founder & Super Administrator of CampusCore.' ELSE 'Student at Osun State University.' END,
+  CASE WHEN (lower(u.email) = 'bhadmusoluwadamilare@gmail.com' OR lower(u.email) = 'davesbrown88@gmail.com') THEN 'trusted_seller' ELSE 'unverified' END,
+  'active',
+  COALESCE(u.created_at, NOW()),
+  NOW()
+FROM auth.users u
+ON CONFLICT (id) DO UPDATE SET
+  email = EXCLUDED.email,
+  updated_at = NOW();
+
+-- Notify PostgREST to reload schema cache
+NOTIFY pgrst, 'reload schema';

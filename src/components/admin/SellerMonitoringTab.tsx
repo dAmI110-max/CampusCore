@@ -130,8 +130,16 @@ export const SellerMonitoringTab: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {filteredSellers.map((item) => (
-                <tr key={item.user.id} className="hover:bg-slate-50/70 transition-colors">
+              {filteredSellers.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="py-8 text-center text-slate-400">
+                    <p className="font-semibold text-slate-600">No active sellers found</p>
+                    <p className="text-[11px] text-slate-400 mt-0.5">Students who register as sellers will be listed here.</p>
+                  </td>
+                </tr>
+              ) : (
+                filteredSellers.map((item) => (
+                  <tr key={item.user.id} className="hover:bg-slate-50/70 transition-colors">
                   <td className="py-3.5 px-3">
                     <div className="flex items-center gap-3">
                       <img
@@ -193,7 +201,7 @@ export const SellerMonitoringTab: React.FC = () => {
                     )}
                   </td>
                 </tr>
-              ))}
+              )))}
             </tbody>
           </table>
         </div>

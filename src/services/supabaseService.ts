@@ -11,9 +11,13 @@ export interface SupabaseSignupPayload {
   fullName: string;
   username: string;
   universityId: string;
+  universityName?: string;
   campusId: string;
+  campusName?: string;
   facultyId?: string;
+  facultyName?: string;
   departmentId?: string;
+  departmentName?: string;
   level?: AcademicLevel;
   phone?: string;
   whatsapp?: string;
@@ -73,6 +77,14 @@ export class SupabaseService {
       const role: UserRole = isSuper ? 'SUPER_ADMIN' : 'STUDENT';
       const sellerStatus: SellerStatus = isSuper ? 'VERIFIED_SELLER' : 'NOT_SELLER';
 
+      const allCampuses = StorageService.getCampuses();
+      const allFaculties = StorageService.getFaculties();
+      const allDepts = payload.facultyId ? StorageService.getDepartments(payload.facultyId) : [];
+
+      const campusName = payload.campusName || allCampuses.find(c => c.id === payload.campusId)?.name || 'Osogbo Main Campus';
+      const facultyName = payload.facultyName || allFaculties.find(f => f.id === payload.facultyId)?.name;
+      const departmentName = payload.departmentName || allDepts.find(d => d.id === payload.departmentId)?.name;
+
       const { data, error } = await supabase.auth.signUp({
         email: cleanEmail,
         password: payload.password,
@@ -82,9 +94,13 @@ export class SupabaseService {
             username: payload.username.trim().toLowerCase(),
             avatar_url: payload.avatarUrl || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=200&q=80',
             university_id: payload.universityId || 'uni-uniosun',
+            university_name: payload.universityName || 'Osun State University',
             campus_id: payload.campusId || 'campus-osogbo',
+            campus_name: campusName,
             faculty_id: payload.facultyId,
+            faculty_name: facultyName,
             department_id: payload.departmentId,
+            department_name: departmentName,
             level: payload.level || '100L',
             phone: payload.phone,
             whatsapp: payload.whatsapp,
@@ -112,49 +128,54 @@ export class SupabaseService {
       // Check if session was created or confirmation is required
       const sessionCreated = Boolean(data.session);
 
-      if (sessionCreated) {
-        // Active session created directly
-        const profileData = {
-          id: data.user.id,
-          auth_user_id: data.user.id,
-          email: cleanEmail,
-          full_name: payload.fullName.trim(),
-          username: payload.username.trim().toLowerCase(),
-          avatar_url: payload.avatarUrl || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=200&q=80',
-          role,
-          seller_status: sellerStatus,
-          seller_onboarding_completed: isSuper,
-          university_id: payload.universityId || 'uni-uniosun',
-          university_name: 'Osun State University',
-          campus_id: payload.campusId || 'campus-osogbo',
-          campus_name: 'Osogbo Main Campus',
-          faculty_id: payload.facultyId,
-          department_id: payload.departmentId,
-          level: payload.level || '100L',
-          phone: payload.phone,
-          whatsapp: payload.whatsapp,
-          bio: isSuper ? 'Founder & Super Administrator of CampusCore.' : 'Student at Osun State University.',
-          verification_badge: isSuper ? 'trusted_seller' : 'unverified',
-          account_status: 'active',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        };
+      const profileData = {
+        id: data.user.id,
+        auth_user_id: data.user.id,
+        email: cleanEmail,
+        full_name: payload.fullName.trim(),
+        username: payload.username.trim().toLowerCase(),
+        avatar_url: payload.avatarUrl || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=200&q=80',
+        role,
+        seller_status: sellerStatus,
+        seller_onboarding_completed: isSuper,
+        university_id: payload.universityId || 'uni-uniosun',
+        university_name: payload.universityName || 'Osun State University',
+        campus_id: payload.campusId || 'campus-osogbo',
+        campus_name: campusName,
+        faculty_id: payload.facultyId,
+        faculty_name: facultyName,
+        department_id: payload.departmentId,
+        department_name: departmentName,
+        level: payload.level || '100L',
+        phone: payload.phone,
+        whatsapp: payload.whatsapp,
+        bio: isSuper ? 'Founder & Super Administrator of CampusCore.' : 'Student at Osun State University.',
+        verification_badge: isSuper ? 'trusted_seller' : 'unverified',
+        account_status: 'active',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
 
-        try {
-          await supabase.from('profiles').upsert(profileData, { onConflict: 'id' });
-        } catch (upsertErr) {
-          console.warn('Profile upsert notice:', upsertErr);
+      try {
+        const { error: upsertErr } = await supabase.from('profiles').upsert(profileData, { onConflict: 'id' });
+        if (upsertErr) {
+          console.error('Supabase profile creation error:', upsertErr.message, upsertErr);
         }
+      } catch (upsertErr: any) {
+        console.warn('Profile upsert notice:', upsertErr?.message);
+      }
 
+      if (payload.password) {
+        StorageService.saveUserCredential(cleanEmail, payload.password);
+        StorageService.saveUserCredential(profileData.username, payload.password);
+      }
+
+      if (sessionCreated) {
         let profile = await this.fetchProfile(data.user.id);
         if (!profile) {
           profile = this.mapDbProfileToUserProfile(profileData);
         }
         StorageService.updateUser(profile.id, profile);
-        if (payload.password) {
-          StorageService.saveUserCredential(cleanEmail, payload.password);
-          StorageService.saveUserCredential(profile.username, payload.password);
-        }
 
         return {
           success: true,
@@ -164,46 +185,10 @@ export class SupabaseService {
         };
       }
 
-      // If no session was created, email confirmation is required by Supabase.
-      // Also establish local storage profile and credentials so the user can test & sign in immediately:
-      const localProfile = StorageService.createUser({
-        fullName: payload.fullName.trim(),
-        username: payload.username.trim().toLowerCase(),
-        email: cleanEmail,
-        avatarUrl: payload.avatarUrl || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=200&q=80',
-        role,
-        sellerStatus,
-        sellerOnboardingCompleted: isSuper,
-        universityId: payload.universityId || 'uni-uniosun',
-        universityName: 'Osun State University',
-        campusId: payload.campusId || 'campus-osogbo',
-        campusName: 'Osogbo Main Campus',
-        facultyId: payload.facultyId,
-        departmentId: payload.departmentId,
-        level: payload.level || '100L',
-        phone: payload.phone,
-        whatsapp: payload.whatsapp,
-        bio: isSuper ? 'Founder & Super Administrator of CampusCore.' : 'Student at Osun State University.',
-        showPhonePublicly: true,
-        showDepartmentPublicly: true,
-        verificationBadge: isSuper ? 'trusted_seller' : 'unverified',
-        accountStatus: 'active',
-        totalCompletedSales: 0,
-        totalOrdersBought: 0,
-        rating: 5.0,
-        totalRatings: 0,
-      });
-
-      if (payload.password) {
-        StorageService.saveUserCredential(cleanEmail, payload.password);
-        StorageService.saveUserCredential(localProfile.username, payload.password);
-      }
-
       return {
         success: true,
-        user: localProfile,
         requiresEmailConfirmation: true,
-        message: 'Registration successful! A verification link has been sent to your email. You can also sign in right now on this device.',
+        message: 'Account created! Please check your email to confirm your address before logging in.',
       };
     } catch (err: any) {
       return { success: false, message: err.message || 'Signup failed' };
@@ -497,9 +482,47 @@ export class SupabaseService {
     return StorageService.getUserById(userId) || null;
   }
 
-  static async fetchAllProfiles(): Promise<UserProfile[]> {
+  static async fetchAllProfilesDetailed(): Promise<{
+    profiles: UserProfile[];
+    error: string | null;
+    isTableMissing: boolean;
+    source: 'api' | 'direct_supabase';
+  }> {
+    // 1. Try server-side admin API first (which has access to auth.admin if service role key is present)
+    try {
+      const res = await fetch('/api/admin/users');
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success && Array.isArray(json.data)) {
+          return {
+            profiles: json.data,
+            error: null,
+            isTableMissing: Boolean(json.isTableMissing),
+            source: 'api',
+          };
+        } else if (json.isTableMissing) {
+          return {
+            profiles: [],
+            error: json.error || "Could not find table 'public.profiles' in schema cache",
+            isTableMissing: true,
+            source: 'api',
+          };
+        }
+      }
+    } catch {
+      // Fall through to client direct query
+    }
+
+    // 2. Direct client query against public.profiles
     const supabase = getSupabase();
-    if (!supabase) return [];
+    if (!supabase || !isSupabaseConfigured()) {
+      return {
+        profiles: [],
+        error: 'Supabase is not configured. Please verify VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.',
+        isTableMissing: false,
+        source: 'direct_supabase',
+      };
+    }
 
     try {
       const { data, error } = await supabase
@@ -508,18 +531,37 @@ export class SupabaseService {
         .order('created_at', { ascending: false });
 
       if (error) {
-        // Previously silent — meant a broken query (missing table, RLS block, etc.)
-        // looked identical to "zero real signups" and admins never knew which one
-        // they were looking at.
-        console.error('fetchAllProfiles failed — admin dashboard will show demo data instead:', error.message);
-        return [];
+        console.error('Supabase fetchAllProfiles query error:', error.message, error);
+        const isTableMissing = error.code === 'PGRST205' || error.message?.includes('schema cache');
+        return {
+          profiles: [],
+          error: error.message,
+          isTableMissing,
+          source: 'direct_supabase',
+        };
       }
-      if (!data) return [];
-      return data.map((d) => this.mapDbProfileToUserProfile(d));
+
+      const mapped = (data || []).map((d) => this.mapDbProfileToUserProfile(d));
+      return {
+        profiles: mapped,
+        error: null,
+        isTableMissing: false,
+        source: 'direct_supabase',
+      };
     } catch (err: any) {
-      console.error('fetchAllProfiles threw an exception:', err?.message);
-      return [];
+      console.error('Supabase fetchAllProfiles exception:', err);
+      return {
+        profiles: [],
+        error: err?.message || 'Failed to query Supabase profiles',
+        isTableMissing: false,
+        source: 'direct_supabase',
+      };
     }
+  }
+
+  static async fetchAllProfiles(): Promise<UserProfile[]> {
+    const res = await this.fetchAllProfilesDetailed();
+    return res.profiles;
   }
 
   static async updateProfile(userId: string, updates: Partial<UserProfile>): Promise<{ success: boolean; user?: UserProfile; message?: string }> {
@@ -1159,114 +1201,132 @@ export class SupabaseService {
   }
 
   static async fetchUserGrowthAnalytics(
-    timeframe: '7d' | '30d' | '90d' | '6m' | '12m' | 'all' = '30d'
-  ) {
-    const supabase = getSupabase();
-    if (!supabase) {
-      return {
-        labels: [],
-        dataPoints: [],
-        metrics: {
-          growthRatePercent: 0,
-          totalRegistered: 0,
-          activeSellersCount: 0,
-          sellerConversionRate: 0,
-          retentionRatePercent: 0,
-        },
-      };
+    timeframe: '7d' | '30d' | '90d' | '6m' | '12m' | 'all' = '30d',
+    providedProfiles?: UserProfile[]
+  ): Promise<{
+    labels: string[];
+    dataPoints: Array<{
+      date: string;
+      label: string;
+      totalUsers: number;
+      newSignups: number;
+      activeSellers: number;
+      ordersPlaced: number;
+      revenue: number;
+    }>;
+    metrics: {
+      growthRatePercent: number;
+      totalRegistered: number;
+      activeSellersCount: number;
+      sellerConversionRate: number;
+      retentionRatePercent: number;
+    };
+    error?: string | null;
+    isTableMissing?: boolean;
+  }> {
+    let allProfiles: Array<{ id: string; created_at?: string; role?: string; seller_status?: string }> = [];
+    let isTableMissing = false;
+    let queryError: string | null = null;
+
+    if (providedProfiles && Array.isArray(providedProfiles)) {
+      allProfiles = providedProfiles.map((p) => ({
+        id: p.id,
+        created_at: p.createdAt,
+        role: p.role,
+        seller_status: p.sellerStatus,
+      }));
+    } else {
+      const detailed = await this.fetchAllProfilesDetailed();
+      if (detailed.error) {
+        queryError = detailed.error;
+        isTableMissing = detailed.isTableMissing;
+      }
+      allProfiles = detailed.profiles.map((p) => ({
+        id: p.id,
+        created_at: p.createdAt,
+        role: p.role,
+        seller_status: p.sellerStatus,
+      }));
     }
 
-    try {
-      const { data: profiles } = await supabase
-        .from('profiles')
-        .select('id, created_at, role, seller_status')
-        .order('created_at', { ascending: true });
+    const totalRegistered = allProfiles.length;
+    const sellers = allProfiles.filter(
+      (p) =>
+        p.role === 'SELLER' ||
+        p.role === 'SUPER_ADMIN' ||
+        p.seller_status === 'SELLER' ||
+        p.seller_status === 'VERIFIED_SELLER'
+    );
+    const activeSellersCount = sellers.length;
+    const sellerConversionRate =
+      totalRegistered > 0 ? Math.round((activeSellersCount / totalRegistered) * 100) : 0;
 
-      const allProfiles = profiles || [];
-      const totalRegistered = allProfiles.length;
-      const sellers = allProfiles.filter(
-        (p) => p.role === 'SELLER' || p.role === 'SUPER_ADMIN' || p.seller_status === 'SELLER' || p.seller_status === 'VERIFIED_SELLER'
-      );
-      const activeSellersCount = sellers.length;
-      const sellerConversionRate = totalRegistered > 0 ? Math.round((activeSellersCount / totalRegistered) * 100) : 0;
+    // Group into days according to requested timeframe
+    const dayCounts = timeframe === '7d' ? 7 : timeframe === '30d' ? 14 : timeframe === '90d' ? 12 : 12;
+    const now = new Date();
+    const dataPoints: Array<{
+      date: string;
+      label: string;
+      totalUsers: number;
+      newSignups: number;
+      activeSellers: number;
+      ordersPlaced: number;
+      revenue: number;
+    }> = [];
 
-      // Group into days according to requested timeframe
-      const dayCounts = timeframe === '7d' ? 7 : timeframe === '30d' ? 14 : timeframe === '90d' ? 12 : 12;
-      const now = new Date();
-      const dataPoints: Array<{
-        date: string;
-        label: string;
-        totalUsers: number;
-        newSignups: number;
-        activeSellers: number;
-        ordersPlaced: number;
-        revenue: number;
-      }> = [];
-
-      for (let i = dayCounts - 1; i >= 0; i--) {
-        const d = new Date();
-        if (timeframe === '7d' || timeframe === '30d') {
-          d.setDate(now.getDate() - (timeframe === '7d' ? i : i * 2));
-        } else {
-          d.setDate(now.getDate() - i * 15);
-        }
-
-        const dateStr = d.toISOString().split('T')[0];
-        const label = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-
-        // Real count of profiles registered on or before this day
-        const usersUpToDate = allProfiles.filter((p) => {
-          if (!p.created_at) return true;
-          return p.created_at.split('T')[0] <= dateStr;
-        }).length;
-
-        // Real count of new signups on this specific date
-        const newOnDate = allProfiles.filter((p) => {
-          if (!p.created_at) return false;
-          return p.created_at.split('T')[0] === dateStr;
-        }).length;
-
-        // Real sellers registered up to this date
-        const sellersUpToDate = sellers.filter((p) => {
-          if (!p.created_at) return true;
-          return p.created_at.split('T')[0] <= dateStr;
-        }).length;
-
-        dataPoints.push({
-          date: dateStr,
-          label,
-          totalUsers: usersUpToDate,
-          newSignups: newOnDate,
-          activeSellers: sellersUpToDate,
-          ordersPlaced: 0,
-          revenue: 0,
-        });
+    for (let i = dayCounts - 1; i >= 0; i--) {
+      const d = new Date();
+      if (timeframe === '7d' || timeframe === '30d') {
+        d.setDate(now.getDate() - (timeframe === '7d' ? i : i * 2));
+      } else {
+        d.setDate(now.getDate() - i * 15);
       }
 
-      return {
-        labels: dataPoints.map((p) => p.label),
-        dataPoints,
-        metrics: {
-          growthRatePercent: 0,
-          totalRegistered,
-          activeSellersCount,
-          sellerConversionRate,
-          retentionRatePercent: totalRegistered > 0 ? 100 : 0,
-        },
-      };
-    } catch {
-      return {
-        labels: [],
-        dataPoints: [],
-        metrics: {
-          growthRatePercent: 0,
-          totalRegistered: 0,
-          activeSellersCount: 0,
-          sellerConversionRate: 0,
-          retentionRatePercent: 0,
-        },
-      };
+      const dateStr = d.toISOString().split('T')[0];
+      const label = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
+      // Real count of profiles registered on or before this day
+      const usersUpToDate = allProfiles.filter((p) => {
+        if (!p.created_at) return true;
+        return p.created_at.split('T')[0] <= dateStr;
+      }).length;
+
+      // Real count of new signups on this specific date
+      const newOnDate = allProfiles.filter((p) => {
+        if (!p.created_at) return false;
+        return p.created_at.split('T')[0] === dateStr;
+      }).length;
+
+      // Real sellers registered up to this date
+      const sellersUpToDate = sellers.filter((p) => {
+        if (!p.created_at) return true;
+        return p.created_at.split('T')[0] <= dateStr;
+      }).length;
+
+      dataPoints.push({
+        date: dateStr,
+        label,
+        totalUsers: usersUpToDate,
+        newSignups: newOnDate,
+        activeSellers: sellersUpToDate,
+        ordersPlaced: 0,
+        revenue: 0,
+      });
     }
+
+    return {
+      labels: dataPoints.map((p) => p.label),
+      dataPoints,
+      metrics: {
+        growthRatePercent: 0,
+        totalRegistered,
+        activeSellersCount,
+        sellerConversionRate,
+        retentionRatePercent: totalRegistered > 0 ? 100 : 0,
+      },
+      error: queryError,
+      isTableMissing,
+    };
   }
 
   // ==========================================
@@ -1479,6 +1539,18 @@ export class SupabaseService {
     const isSuper = this.isSuperAdminEmail(db.email) || db.role === 'SUPER_ADMIN';
     const role: UserRole = isSuper ? 'SUPER_ADMIN' : (db.role || 'STUDENT');
 
+    const allCampuses = StorageService.getCampuses();
+    const allFaculties = StorageService.getFaculties();
+    const matchedCampus = db.campus_id ? allCampuses.find(c => c.id === db.campus_id) : null;
+    const campusName = db.campus_name || matchedCampus?.name || 'Osogbo Main Campus';
+
+    const matchedFaculty = db.faculty_id ? allFaculties.find(f => f.id === db.faculty_id) : null;
+    const facultyName = db.faculty_name || matchedFaculty?.name;
+
+    const allDepts = db.faculty_id ? StorageService.getDepartments(db.faculty_id) : [];
+    const matchedDept = db.department_id ? allDepts.find(d => d.id === db.department_id) : null;
+    const departmentName = db.department_name || matchedDept?.name;
+
     return {
       id: db.id,
       authUserId: db.auth_user_id || db.id,
@@ -1491,11 +1563,11 @@ export class SupabaseService {
       universityId: db.university_id || 'uni-uniosun',
       universityName: db.university_name || 'Osun State University',
       campusId: db.campus_id || 'campus-osogbo',
-      campusName: db.campus_name || 'Osogbo Main Campus',
+      campusName,
       facultyId: db.faculty_id,
-      facultyName: db.faculty_name,
+      facultyName,
       departmentId: db.department_id,
-      departmentName: db.department_name,
+      departmentName,
       level: db.level || '100L',
       bio: db.bio || 'Student on CampusCore',
       phone: db.phone,

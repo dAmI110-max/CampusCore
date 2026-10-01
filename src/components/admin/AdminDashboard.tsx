@@ -178,8 +178,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const stats = dbStats
     ? {
         ...localStats,
-        totalUsers: dbStats.totalUsers || localStats.totalUsers,
-        totalProducts: dbStats.totalProducts || localStats.totalProducts,
+        totalUsers: dbStats.totalUsers ?? localStats.totalUsers,
+        totalProducts: dbStats.totalProducts ?? localStats.totalProducts,
         totalReports: dbStats.totalReports ?? localStats.totalReports,
         totalOrders: dbStats.totalOrders ?? localStats.totalOrders,
         totalEscrowVolume: dbStats.totalVolume ?? localStats.totalEscrowVolume,

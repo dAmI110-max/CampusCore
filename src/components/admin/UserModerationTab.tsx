@@ -31,8 +31,10 @@ export const UserModerationTab: React.FC<UserModerationTabProps> = ({ onRefresh 
   const { currentUser, isSuperAdmin } = useAuth();
   const { success, error: showError } = useToast();
 
-  const [users, setUsers] = useState<UserProfile[]>(() => StorageService.getUsers());
-  const [isLoading, setIsLoading] = useState(false);
+  const [users, setUsers] = useState<UserProfile[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [queryError, setQueryError] = useState<string | null>(null);
+  const [isTableMissing, setIsTableMissing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [campusFilter, setCampusFilter] = useState<string>('all');
@@ -124,7 +126,7 @@ export const UserModerationTab: React.FC<UserModerationTabProps> = ({ onRefresh 
       }
 
       StorageService.updateUser(editAcademicUser.id, updates);
-      success(`Academic profile for ${editAcademicUser.fullName} updated.`);
+      success(`Academic profile for ${editAcademicUser.fullName} updated in Supabase.`);
       setEditAcademicUser(null);
       await fetchLiveUsers();
       onRefresh();
@@ -137,38 +139,40 @@ export const UserModerationTab: React.FC<UserModerationTabProps> = ({ onRefresh 
 
   const fetchLiveUsers = useCallback(async () => {
     setIsLoading(true);
+    setQueryError(null);
+    setIsTableMissing(false);
+
     try {
-      let combined: UserProfile[] = [];
-      if (isSupabaseConfigured()) {
-        try {
-          const dbUsers = await SupabaseService.fetchAllProfiles();
-          if (dbUsers && dbUsers.length > 0) {
-            combined = [...dbUsers];
-          }
-        } catch {
-          // fallback
-        }
+      if (!isSupabaseConfigured()) {
+        setQueryError('Supabase is not configured. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.');
+        setUsers([]);
+        setIsLoading(false);
+        return;
       }
 
-      const localUsers = StorageService.getUsers();
-      localUsers.forEach((lu) => {
-        if (!combined.some((u) => u.id === lu.id || (u.email && lu.email && u.email.toLowerCase() === lu.email.toLowerCase()))) {
-          combined.push(lu);
-        }
-      });
+      const res = await SupabaseService.fetchAllProfilesDetailed();
 
-      const finalUsers = combined.map((u) => {
-        const isSuper = SupabaseService.isSuperAdminEmail(u.email);
-        if (isSuper) {
-          return { ...u, role: 'SUPER_ADMIN' as const, sellerStatus: 'VERIFIED_SELLER' as const };
-        }
-        return u;
-      });
+      if (res.error) {
+        console.error('UserModerationTab fetch error:', res.error);
+        setQueryError(res.error);
+        setIsTableMissing(res.isTableMissing);
+        setUsers([]);
+      } else {
+        const finalUsers = res.profiles.map((u) => {
+          const isSuper = SupabaseService.isSuperAdminEmail(u.email);
+          if (isSuper) {
+            return { ...u, role: 'SUPER_ADMIN' as const, sellerStatus: 'VERIFIED_SELLER' as const };
+          }
+          return u;
+        });
 
-      setUsers(finalUsers);
-      StorageService.syncProfilesFromSupabase(finalUsers);
-    } catch {
-      setUsers(StorageService.getUsers());
+        setUsers(finalUsers);
+        StorageService.syncProfilesFromSupabase(finalUsers);
+      }
+    } catch (err: any) {
+      console.error('UserModerationTab exception:', err);
+      setQueryError(err?.message || 'Failed to load live users from Supabase');
+      setUsers([]);
     } finally {
       setIsLoading(false);
     }
@@ -354,6 +358,45 @@ export const UserModerationTab: React.FC<UserModerationTabProps> = ({ onRefresh 
         </div>
       </div>
 
+      {/* Database Setup Notice if table missing */}
+      {isTableMissing && (
+        <div className="p-5 rounded-3xl bg-amber-500/10 border border-amber-500/30 text-amber-900 text-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div>
+            <div className="font-bold text-sm flex items-center gap-2 text-amber-950 mb-1">
+              <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0" />
+              Supabase Database Setup Required (public.profiles table not found)
+            </div>
+            <p className="text-xs text-amber-800 leading-relaxed max-w-2xl">
+              Supabase Auth contains your real user accounts, but the <code>public.profiles</code> table has not been created in your Supabase database yet. Run the SQL migration script from <code>supabase/schema.sql</code> in your Supabase SQL Editor to automatically link your accounts.
+            </p>
+          </div>
+          <button
+            onClick={() => {
+              success('Check supabase/schema.sql to copy the complete schema script.');
+            }}
+            className="px-4 py-2 rounded-2xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs shrink-0 cursor-pointer shadow-sm"
+          >
+            View SQL Schema
+          </button>
+        </div>
+      )}
+
+      {/* Query error notice */}
+      {queryError && !isTableMissing && (
+        <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+            <span>Error querying Supabase: {queryError}</span>
+          </div>
+          <button
+            onClick={fetchLiveUsers}
+            className="px-3 py-1 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs cursor-pointer"
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
       {/* Users Table */}
       <div className="bg-white rounded-3xl border border-slate-200 shadow-xs overflow-hidden">
         <div className="overflow-x-auto">
@@ -369,7 +412,14 @@ export const UserModerationTab: React.FC<UserModerationTabProps> = ({ onRefresh 
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {filteredUsers.length === 0 ? (
+              {isLoading ? (
+                <tr>
+                  <td colSpan={6} className="py-12 text-center text-slate-400">
+                    <RefreshCw className="w-6 h-6 animate-spin mx-auto text-indigo-500 mb-2" />
+                    <p className="font-semibold text-slate-600">Loading Supabase profiles...</p>
+                  </td>
+                </tr>
+              ) : filteredUsers.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="py-12 text-center text-slate-400">
                     <UserX className="w-8 h-8 mx-auto text-slate-300 mb-2" />

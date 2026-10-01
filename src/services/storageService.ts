@@ -264,7 +264,7 @@ export class StorageService {
     }
 
     // Dynamic one-time migration & demo data purge (checked via version flag to prevent infinite loops)
-    const MIGRATION_VERSION = 'v9_uniosun_complete_faculties_and_departments';
+    const MIGRATION_VERSION = 'v11_pure_supabase_zero_mock_users';
     const currentMigration = safeGetRaw('campuscore_migration_ver');
 
     if (currentMigration !== MIGRATION_VERSION) {
@@ -280,51 +280,25 @@ export class StorageService {
         setItem(STORAGE_KEYS.CAMPUSES, INITIAL_CAMPUSES);
         setItem(STORAGE_KEYS.UNIVERSITIES, INITIAL_UNIVERSITIES);
 
-        // 3. Purge all prototype users, keeping only Super Admins and genuine registered users
+        // 3. Purge all prototype and mock seed users, keeping only genuine registered users
         const prototypeIds = new Set([
           'usr-tunde', 'usr-zainab', 'usr-chidi', 'usr-amaka', 'usr-emeka',
           'usr-fatima', 'usr-segun', 'usr-aisha', 'usr-blessing', 'usr-korede',
           'usr-halima', 'usr-folake', 'usr-ibrahim', 'usr-yetunde', 'usr-damilola',
-          'usr-ngozi', 'usr-taiwo'
+          'usr-ngozi', 'usr-taiwo',
+          'usr-uniosun-ayomide', 'usr-uniosun-zainab', 'usr-uniosun-emmanuel',
+          'usr-uniosun-fatima', 'usr-uniosun-korede',
+          'usr-superadmin-damilare', 'usr-superadmin-dave'
         ]);
 
-        const currentUsers = getItem<UserProfile[]>(STORAGE_KEYS.USERS, INITIAL_USERS);
+        const currentUsers = getItem<UserProfile[]>(STORAGE_KEYS.USERS, []);
         const filteredUsers = currentUsers.filter((u) => {
-          const isSuperAdmin =
-            u.email?.toLowerCase() === this.SUPER_ADMIN_EMAIL.toLowerCase() ||
-            u.email?.toLowerCase() === this.SECONDARY_SUPER_ADMIN_EMAIL.toLowerCase() ||
-            u.role === 'SUPER_ADMIN';
-          return isSuperAdmin || (!prototypeIds.has(u.id) && !u.id.startsWith('usr-tunde'));
-        }).map((u) => {
-          // Correct any legacy default Mechanical Engineering on admin accounts to Computing
-          if (
-            (u.email?.toLowerCase() === this.SUPER_ADMIN_EMAIL.toLowerCase() ||
-              u.email?.toLowerCase() === this.SECONDARY_SUPER_ADMIN_EMAIL.toLowerCase()) &&
-            (u.departmentName === 'Mechanical Engineering' || u.facultyId === 'fac-eng')
-          ) {
-            return {
-              ...u,
-              facultyId: 'fac-computing',
-              facultyName: 'Faculty of Computing and Information Technology (FOCIT)',
-              departmentId: 'dept-comp-cs',
-              departmentName: 'Computer Science',
-            };
-          }
-          return u;
+          const isMockEmail = (u.email || '').toLowerCase().includes('@uniosun.edu.ng');
+          const isPrototypeId = prototypeIds.has(u.id) || u.id.startsWith('usr-tunde') || u.id.startsWith('usr-uniosun-') || u.id.startsWith('usr-superadmin-');
+          return !isMockEmail && !isPrototypeId;
         });
 
-        // Ensure Damilare and Dave are present and have 0 products
-        const damilareUser = INITIAL_USERS[0];
-        const daveUser = INITIAL_USERS[1];
-
-        let cleanUsers = [...filteredUsers];
-        INITIAL_USERS.forEach((u) => {
-          if (!cleanUsers.some((cu) => cu.id === u.id || (cu.email && u.email && cu.email.toLowerCase() === u.email.toLowerCase()))) {
-            cleanUsers.push(u);
-          }
-        });
-
-        setItem(STORAGE_KEYS.USERS, cleanUsers);
+        setItem(STORAGE_KEYS.USERS, filteredUsers);
 
         // Clean saved accounts of prototype users and wipe legacy auto-seeded accounts
         try {
@@ -535,15 +509,18 @@ export class StorageService {
 
   // --- AUTH & USERS ---
   static getUsers(): UserProfile[] {
-    let users = getItem<UserProfile[]>(STORAGE_KEYS.USERS, INITIAL_USERS);
-    let modified = false;
-    INITIAL_USERS.forEach((iu) => {
-      if (!users.some((u) => u.id === iu.id || (u.email && iu.email && u.email.toLowerCase() === iu.email.toLowerCase()))) {
-        users.push(iu);
-        modified = true;
-      }
+    let rawUsers = getItem<UserProfile[]>(STORAGE_KEYS.USERS, []);
+    // Filter out any lingering mock/seed @uniosun.edu.ng users or prototype IDs
+    let users = rawUsers.filter((u) => {
+      if ((u.email || '').toLowerCase().includes('@uniosun.edu.ng')) return false;
+      if (
+        u.id.startsWith('usr-uniosun-') ||
+        u.id.startsWith('usr-tunde') ||
+        u.id.startsWith('usr-superadmin-')
+      ) return false;
+      return true;
     });
-    if (modified) {
+    if (users.length !== rawUsers.length) {
       setItem(STORAGE_KEYS.USERS, users);
     }
     return users;
@@ -707,15 +684,6 @@ export class StorageService {
     
     // Automatically provision user wallet
     this.getWallet(newId);
-
-    // Sync to shared backend so Superadmin analytics across devices sees new user immediately
-    if (typeof window !== 'undefined') {
-      fetch('/api/users', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newUser),
-      }).catch(() => {});
-    }
 
     return newUser;
   }
@@ -1030,25 +998,6 @@ export class StorageService {
     return { success: true, message: `Account status updated to ${status}.` };
   }
 
-  static async syncWithServer(): Promise<void> {
-    if (typeof window === 'undefined') return;
-    try {
-      const [prodRes, userRes] = await Promise.all([
-        fetch('/api/products').then((r) => r.json()).catch(() => null),
-        fetch('/api/users').then((r) => r.json()).catch(() => null),
-      ]);
-
-      if (prodRes?.success && Array.isArray(prodRes.products) && prodRes.products.length > 0) {
-        this.syncProductsFromSupabase(prodRes.products);
-      }
-      if (userRes?.success && Array.isArray(userRes.users) && userRes.users.length > 0) {
-        this.syncProfilesFromSupabase(userRes.users);
-      }
-    } catch {
-      // offline fallback
-    }
-  }
-
   static syncProfilesFromSupabase(profiles: UserProfile[]): void {
     if (profiles && profiles.length > 0) {
       const current = this.getUsers();
@@ -1168,15 +1117,6 @@ export class StorageService {
     products.unshift(newProduct);
     setItem(STORAGE_KEYS.PRODUCTS, products);
 
-    // Sync to shared backend so other users/devices see it and refresh never loses it
-    if (typeof window !== 'undefined') {
-      fetch('/api/products', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newProduct),
-      }).catch(() => {});
-    }
-
     // Send notification to seller
     this.createNotification({
       userId: newProduct.sellerId,
@@ -1207,9 +1147,6 @@ export class StorageService {
     const filtered = products.filter((p) => p.id !== id);
     if (filtered.length === products.length) return false;
     setItem(STORAGE_KEYS.PRODUCTS, filtered);
-    if (typeof window !== 'undefined') {
-      fetch(`/api/products?id=${encodeURIComponent(id)}`, { method: 'DELETE' }).catch(() => {});
-    }
     return true;
   }
 
@@ -2895,7 +2832,6 @@ export class StorageService {
     }[] = [];
 
     const now = new Date();
-    const baseTotal = Math.max(1, totalUsers);
 
     for (let i = dayCounts - 1; i >= 0; i--) {
       const d = new Date();
@@ -2904,21 +2840,45 @@ export class StorageService {
       } else {
         d.setDate(now.getDate() - i * 15);
       }
-      
+
+      const dateStr = d.toISOString().split('T')[0];
       const label = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-      const progress = (dayCounts - i) / dayCounts;
-      const pointTotal = Math.max(2, Math.round(baseTotal * (0.3 + 0.7 * progress)));
-      const newSignups = Math.max(1, Math.round(1 + progress * 4));
-      const activeSellers = Math.max(1, Math.round(sellers.length * (0.4 + 0.6 * progress)));
-      const ordersCount = Math.max(0, Math.round(orders.length * (0.3 + 0.7 * progress)));
-      const rev = ordersCount * 450;
+
+      // Real users registered on or before this day
+      const usersUpToDate = users.filter((u) => {
+        if (!u.createdAt) return true;
+        return u.createdAt.split('T')[0] <= dateStr;
+      }).length;
+
+      // Real new signups on this specific date
+      const newOnDate = users.filter((u) => {
+        if (!u.createdAt) return false;
+        return u.createdAt.split('T')[0] === dateStr;
+      }).length;
+
+      // Real sellers up to this date
+      const sellersUpToDate = sellers.filter((u) => {
+        if (!u.createdAt) return true;
+        return u.createdAt.split('T')[0] <= dateStr;
+      }).length;
+
+      // Real orders on or before this date
+      const ordersCount = orders.filter((o) => {
+        if (!o.createdAt) return false;
+        return o.createdAt.split('T')[0] <= dateStr;
+      }).length;
+
+      const rev = orders.filter((o) => {
+        if (!o.createdAt) return false;
+        return o.createdAt.split('T')[0] <= dateStr;
+      }).reduce((sum, o) => sum + (o.amount || 0), 0);
 
       dataPoints.push({
-        date: d.toISOString().split('T')[0],
+        date: dateStr,
         label,
-        totalUsers: pointTotal,
-        newSignups,
-        activeSellers,
+        totalUsers: usersUpToDate,
+        newSignups: newOnDate,
+        activeSellers: sellersUpToDate,
         ordersPlaced: ordersCount,
         revenue: rev,
       });
@@ -2930,11 +2890,11 @@ export class StorageService {
       labels: dataPoints.map((p) => p.label),
       dataPoints,
       metrics: {
-        growthRatePercent: 24.5,
+        growthRatePercent: 0,
         totalRegistered: totalUsers,
         activeSellersCount: sellers.length,
         sellerConversionRate,
-        retentionRatePercent: 88.4,
+        retentionRatePercent: 0,
       },
     };
   }
@@ -2960,40 +2920,40 @@ export class StorageService {
     const orders = this.getOrders();
 
     const totalAccounts = users.length;
-    const exploredSell = Math.round(totalAccounts * 0.72);
     const completedOnboarding = users.filter((u) => u.sellerOnboardingCompleted || u.sellerStatus === 'SELLER' || u.sellerStatus === 'VERIFIED_SELLER' || u.role === 'seller').length;
     const publishedListings = new Set(products.map((p) => p.sellerId)).size;
+    const exploredSell = Math.max(publishedListings, completedOnboarding);
     const madeSales = new Set(orders.filter((o) => o.status === 'completed').map((o) => o.sellerId)).size;
 
     const funnel = [
       {
         stage: 'Account Registered',
         count: totalAccounts,
-        percentage: 100,
+        percentage: totalAccounts > 0 ? 100 : 0,
         description: 'Verified student accounts on CampusCore',
       },
       {
         stage: 'Explored Selling',
         count: exploredSell,
-        percentage: Math.round((exploredSell / Math.max(1, totalAccounts)) * 100),
+        percentage: totalAccounts > 0 ? Math.round((exploredSell / totalAccounts) * 100) : 0,
         description: 'Students who opened Sell modal or seller center',
       },
       {
         stage: 'Completed Onboarding',
         count: completedOnboarding,
-        percentage: Math.round((completedOnboarding / Math.max(1, totalAccounts)) * 100),
+        percentage: totalAccounts > 0 ? Math.round((completedOnboarding / totalAccounts) * 100) : 0,
         description: 'Completed campus seller details & WhatsApp sync',
       },
       {
         stage: 'Published First Listing',
         count: publishedListings,
-        percentage: Math.round((publishedListings / Math.max(1, totalAccounts)) * 100),
+        percentage: totalAccounts > 0 ? Math.round((publishedListings / totalAccounts) * 100) : 0,
         description: 'Posted active items on marketplace',
       },
       {
         stage: 'Completed First Sale',
-        count: Math.max(1, madeSales),
-        percentage: Math.round((Math.max(1, madeSales) / Math.max(1, totalAccounts)) * 100),
+        count: madeSales,
+        percentage: totalAccounts > 0 ? Math.round((madeSales / totalAccounts) * 100) : 0,
         description: 'Delivered orders with escrow confirmation',
       },
     ];
