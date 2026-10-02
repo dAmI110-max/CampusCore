@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
+import { MarketService } from '../../services/marketService';
 import { StorageService } from '../../services/storageService';
 import { Order, OrderStatus } from '../../types';
 import {
@@ -75,62 +76,60 @@ export const OrdersView: React.FC<OrdersViewProps> = ({
 
   const orders = StorageService.getOrders(currentUser.id, activeTab);
 
-  const handleMarkDelivered = (order: Order) => {
+  const handleMarkDelivered = async (order: Order) => {
     setIsProcessing(true);
-    setTimeout(() => {
-      const res = StorageService.markOrderDelivered(order.id, currentUser.id, deliveryNotes);
-      setIsProcessing(false);
-      if (res.success) {
-        success('Order marked as delivered! Buyer notified to inspect and release payment.');
-        setShowMarkDeliveredModal(null);
-        setDeliveryNotes('');
-      } else {
-        showError(res.message || 'Action failed');
-      }
-    }, 600);
+    const res = MarketService.enabled
+      ? await MarketService.orderAction(order.id, 'mark_delivered', deliveryNotes)
+      : StorageService.markOrderDelivered(order.id, currentUser.id, deliveryNotes);
+    setIsProcessing(false);
+    if (res.success) {
+      success('Order marked as delivered! Buyer notified to inspect and release payment.');
+      setShowMarkDeliveredModal(null);
+      setDeliveryNotes('');
+    } else {
+      showError(res.message || 'Action failed');
+    }
   };
 
-  const handleReleaseEscrow = (order: Order) => {
+  const handleReleaseEscrow = async (order: Order) => {
     setIsProcessing(true);
-    setTimeout(() => {
-      const res = StorageService.confirmOrderReceivedAndReleaseEscrow(order.id, currentUser.id);
-      setIsProcessing(false);
-      if (res.success) {
-        success(`Order completed! You have confirmed satisfactory receipt of the item from ${order.sellerName}.`);
-        setShowConfirmReleaseModal(null);
-        if (onOpenReviewModal) {
-          onOpenReviewModal(order);
-        }
-      } else {
-        showError(res.message || 'Release failed');
+    const res = MarketService.enabled
+      ? await MarketService.orderAction(order.id, 'confirm_received')
+      : StorageService.confirmOrderReceivedAndReleaseEscrow(order.id, currentUser.id);
+    setIsProcessing(false);
+    if (res.success) {
+      success(`Order completed! You have confirmed satisfactory receipt of the item from ${order.sellerName}.`);
+      setShowConfirmReleaseModal(null);
+      if (onOpenReviewModal) {
+        onOpenReviewModal(order);
       }
-    }, 700);
+    } else {
+      showError(res.message || 'Release failed');
+    }
   };
 
-  const handleOpenDispute = (order: Order) => {
+  const handleOpenDispute = async (order: Order) => {
     if (!disputeDescription.trim()) {
       showError('Please explain the issue in detail');
       return;
     }
 
     setIsProcessing(true);
-    setTimeout(() => {
-      const res = StorageService.openDispute(
-        order.id,
-        currentUser.id,
-        disputeReason,
-        disputeDescription,
-        []
-      );
-      setIsProcessing(false);
-      if (res.success) {
-        success('Dispute opened. CampusCore moderation has frozen funds and is reviewing.');
-        setShowDisputeModal(null);
-        setDisputeDescription('');
-      } else {
-        showError(res.message || 'Failed to open dispute');
-      }
-    }, 600);
+    let res: { success: boolean; message?: string };
+    if (MarketService.enabled) {
+      // Server freezes the escrow; admins see the disputed order and the reason attached to it.
+      res = await MarketService.orderAction(order.id, 'dispute', `DISPUTE (${disputeReason}): ${disputeDescription}`);
+    } else {
+      res = StorageService.openDispute(order.id, currentUser.id, disputeReason, disputeDescription, []);
+    }
+    setIsProcessing(false);
+    if (res.success) {
+      success('Dispute opened. CampusCore moderation has frozen funds and is reviewing.');
+      setShowDisputeModal(null);
+      setDisputeDescription('');
+    } else {
+      showError(res.message || 'Failed to open dispute');
+    }
   };
 
   const getStatusBadge = (status: OrderStatus) => {

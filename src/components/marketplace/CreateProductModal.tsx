@@ -2,8 +2,9 @@ import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { StorageService } from '../../services/storageService';
-import { SupabaseService } from '../../services/supabaseService';
-import { uploadImageToSupabase, isSupabaseConfigured } from '../../lib/supabase';
+import { MarketService } from '../../services/marketService';
+import { compressImage } from '../../lib/imageUtils';
+import { uploadImageToSupabase } from '../../lib/supabase';
 import { ProductCondition, Category, Campus } from '../../types';
 import {
   X,
@@ -31,6 +32,8 @@ const SAMPLE_IMAGE_PRESETS = [
   'https://images.unsplash.com/photo-1585771724684-38269d6639fd?auto=format&fit=crop&w=800&q=80', // Fan
 ];
 
+const DEFAULT_IMAGE = 'https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?auto=format&fit=crop&w=800&q=80';
+
 export const CreateProductModal: React.FC<CreateProductModalProps> = ({
   isOpen,
   onClose,
@@ -53,6 +56,7 @@ export const CreateProductModal: React.FC<CreateProductModalProps> = ({
   const [customImageUrl, setCustomImageUrl] = useState('');
   const [showPreview, setShowPreview] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
 
   if (!isOpen) return null;
 
@@ -71,119 +75,103 @@ export const CreateProductModal: React.FC<CreateProductModalProps> = ({
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      if (file.size > 5 * 1024 * 1024) {
-        error('Image size exceeds 5MB limit.');
-        return;
-      }
-      if (isSupabaseConfigured()) {
-        try {
-          const { url: uploadedUrl } = await uploadImageToSupabase(file, 'listings');
-          if (uploadedUrl) {
-            handleAddImage(uploadedUrl);
-            return;
-          }
-        } catch {
-          // fallback to base64
+    const files: File[] = Array.from((e.target.files || []) as ArrayLike<File>);
+    e.target.value = '';
+    for (const file of files) {
+      if (imageUrls.length >= 5) { error('Maximum 5 images allowed per listing.'); break; }
+      if (!file.type.startsWith('image/')) { error('Only image files are allowed.'); continue; }
+      if (file.size > 15 * 1024 * 1024) { error('Image is too large (max 15MB).'); continue; }
+      setIsUploading(true);
+      try {
+        const blob = await compressImage(file);
+        if (MarketService.enabled) {
+          const { url: uploadedUrl, error: upErr } = await uploadImageToSupabase(blob, 'listings');
+          if (!uploadedUrl) { error(upErr || 'Image upload failed. Please try again.'); continue; }
+          setImageUrls((prev) => (prev.length >= 5 ? prev : [...prev, uploadedUrl]));
+        } else {
+          const dataUrl: string = await new Promise((res, rej) => {
+            const r = new FileReader(); r.onload = () => res(r.result as string); r.onerror = rej; r.readAsDataURL(blob);
+          });
+          setImageUrls((prev) => (prev.length >= 5 ? prev : [...prev, dataUrl]));
         }
+      } finally {
+        setIsUploading(false);
       }
-      // Read as persistent Base64 Data URL so it survives page reloads
-      const reader = new FileReader();
-      reader.onload = (uploadEvent) => {
-        const dataUrl = uploadEvent.target?.result as string;
-        if (dataUrl) {
-          handleAddImage(dataUrl);
-        }
-      };
-      reader.readAsDataURL(file);
     }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting || isUploading) return;
 
-    if (!currentUser) {
-      error('You must be logged in to create a listing.');
-      return;
-    }
-
+    if (!currentUser) { error('You must be logged in to create a listing.'); return; }
     if (!title.trim() || !price || !description.trim()) {
       error('Please complete all required fields (title, price, and description).');
+      return;
+    }
+    const priceNum = Number(price);
+    if (!Number.isFinite(priceNum) || priceNum <= 0 || priceNum > 5_000_000) {
+      error('Enter a valid price between ₦1 and ₦5,000,000.');
+      return;
+    }
+    if (!currentUser.phone && !currentUser.whatsapp) {
+      error('Add a phone or WhatsApp number to your profile so buyers can reach you.');
       return;
     }
 
     const selectedCategory = categories.find((c) => c.id === categoryId);
     const selectedCampus = campuses.find((c) => c.id === campusId);
-
-    const imagesToUse =
-      imageUrls.length > 0
-        ? imageUrls
-        : ['https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?auto=format&fit=crop&w=800&q=80'];
+    const imagesToUse = imageUrls.length > 0 ? imageUrls : [DEFAULT_IMAGE];
+    const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '') + `-${Date.now().toString().slice(-4)}`;
+    const base = {
+      sellerId: currentUser.id,
+      sellerName: currentUser.fullName,
+      sellerAvatar: currentUser.avatarUrl,
+      sellerCampus: selectedCampus?.name || currentUser.campusName || 'Osogbo Main Campus',
+      sellerPhone: currentUser.phone,
+      sellerWhatsapp: currentUser.whatsapp || currentUser.phone,
+      categoryId,
+      categoryName: selectedCategory?.name || 'General',
+      title: title.trim(),
+      slug,
+      description: description.trim(),
+      price: priceNum,
+      condition,
+      campusId,
+      images: imagesToUse,
+      status: 'active' as const,
+    };
 
     setIsSubmitting(true);
-
     try {
-      const slug = title
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/(^-|-$)+/g, '') + `-${Date.now().toString().slice(-4)}`;
-
-      // 1. Supabase insert if configured
-      if (isSupabaseConfigured()) {
-        await SupabaseService.createListing({
-          sellerId: currentUser.id,
-          sellerName: currentUser.fullName,
-          sellerAvatar: currentUser.avatarUrl,
-          sellerCampus: selectedCampus?.name || currentUser.campusName || 'Osogbo Main Campus',
-          sellerPhone: currentUser.phone,
-          sellerWhatsapp: currentUser.whatsapp || currentUser.phone,
-          categoryId,
-          categoryName: selectedCategory?.name || 'General',
-          title: title.trim(),
-          slug,
-          description: description.trim(),
-          price: Number(price),
-          condition,
-          campusId,
-          images: imagesToUse,
-          status: 'active',
+      if (MarketService.enabled) {
+        // The listing only counts as published once the SERVER has stored it.
+        const res = await MarketService.createListing(base);
+        if (!res.success || !res.data) {
+          error(res.message || 'Failed to publish listing. Please try again.');
+          setIsSubmitting(false);
+          return;
+        }
+        StorageService.upsertProductFromServer(res.data);
+        MarketService.syncAll();
+      } else {
+        StorageService.createProduct({
+          ...base,
+          sellerTelegram: currentUser.telegram,
+          sellerRating: currentUser.rating || 5.0,
+          sellerTotalSales: currentUser.totalRatings || 0,
+          currency: 'NGN',
+          location: location.trim() || selectedCampus?.name || 'UNIOSUN Campus',
+          universityId: currentUser.universityId || 'uni-uniosun',
+          featured: false,
         });
       }
-
-      // 2. Local cache insert
-      StorageService.createProduct({
-        sellerId: currentUser.id,
-        sellerName: currentUser.fullName,
-        sellerAvatar: currentUser.avatarUrl,
-        sellerCampus: selectedCampus?.name || currentUser.campusName || 'Osogbo Main Campus',
-        sellerWhatsapp: currentUser.whatsapp || currentUser.phone,
-        sellerTelegram: currentUser.telegram,
-        sellerPhone: currentUser.phone,
-        sellerRating: currentUser.rating || 5.0,
-        sellerTotalSales: (currentUser.totalRatings || 0) + 1,
-        categoryId,
-        categoryName: selectedCategory?.name || 'General',
-        title: title.trim(),
-        slug,
-        description: description.trim(),
-        price: Number(price),
-        currency: 'NGN',
-        condition,
-        location: location.trim() || selectedCampus?.name || 'UNIOSUN Campus',
-        campusId,
-        universityId: currentUser.universityId || 'uni-uniosun',
-        status: 'active',
-        featured: false,
-        images: imagesToUse,
-      });
-
       success('Your listing is live on CampusCore marketplace!');
-      setIsSubmitting(false);
       if (onSuccess) onSuccess();
       onClose();
     } catch {
       error('Failed to publish listing. Please try again.');
+    } finally {
       setIsSubmitting(false);
     }
   };
@@ -397,7 +385,7 @@ export const CreateProductModal: React.FC<CreateProductModalProps> = ({
                       <label className="w-20 h-20 rounded-xl border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-emerald-500 dark:hover:border-emerald-400 bg-slate-50 dark:bg-slate-800/50 hover:bg-emerald-50/50 dark:hover:bg-emerald-950/30 flex flex-col items-center justify-center cursor-pointer transition-colors text-slate-500 dark:text-slate-400 hover:text-emerald-700 dark:hover:text-emerald-300">
                         <Upload className="w-5 h-5 mb-1" />
                         <span className="text-[10px] font-semibold">Upload</span>
-                        <input type="file" accept="image/*" onChange={handleFileUpload} className="hidden" />
+                        <input type="file" accept="image/*" multiple onChange={handleFileUpload} className="hidden" />
                       </label>
                     )}
                   </div>
@@ -462,7 +450,7 @@ export const CreateProductModal: React.FC<CreateProductModalProps> = ({
                   </div>
                   <button
                     type="submit"
-                    disabled={isSubmitting}
+                    disabled={isSubmitting || isUploading}
                     className="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm rounded-xl transition-all shadow-md shadow-emerald-600/20 active:scale-98 disabled:opacity-50 flex items-center gap-2 cursor-pointer"
                   >
                     {isSubmitting ? 'Publishing...' : 'Publish Listing Now'}

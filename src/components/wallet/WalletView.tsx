@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
+import { isSupabaseConfigured } from '../../lib/supabase';
 import { StorageService } from '../../services/storageService';
 import { WalletTransaction, UserBankAccount } from '../../types';
 import {
@@ -118,6 +119,11 @@ export const WalletView: React.FC<{ onNavigateToOrders?: () => void }> = ({ onNa
       return;
     }
 
+    if (isSupabaseConfigured()) {
+      showError('Wallet top-ups are not available. Pay for items directly at checkout with Paystack.');
+      return;
+    }
+
     setIsProcessingDeposit(true);
     // Simulate secure Payment Gateway processing
     setTimeout(() => {
@@ -135,6 +141,10 @@ export const WalletView: React.FC<{ onNavigateToOrders?: () => void }> = ({ onNa
 
   const handleWithdrawSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSupabaseConfigured()) {
+      showError('Automated withdrawals are not enabled yet. Contact CampusCore support to receive the payout for your completed orders.');
+      return;
+    }
     const amount = Number(withdrawAmount);
     if (!selectedBankId && bankAccounts.length > 0) {
       setSelectedBankId(bankAccounts[0].id);

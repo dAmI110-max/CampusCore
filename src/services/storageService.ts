@@ -1067,6 +1067,41 @@ export class StorageService {
     }
   }
 
+  // --- SERVER MIRRORS (Supabase is the source of truth; these keep the browser cache identical to it) ---
+  static replaceProductsFromServer(products: Product[]): void {
+    setItem(STORAGE_KEYS.PRODUCTS, products);
+  }
+
+  static upsertProductFromServer(product: Product): void {
+    const current = getItem<Product[]>(STORAGE_KEYS.PRODUCTS, INITIAL_PRODUCTS).filter((p) => p.id !== product.id);
+    setItem(STORAGE_KEYS.PRODUCTS, [product, ...current]);
+  }
+
+  static removeProductFromCache(id: string): void {
+    setItem(STORAGE_KEYS.PRODUCTS, getItem<Product[]>(STORAGE_KEYS.PRODUCTS, INITIAL_PRODUCTS).filter((p) => p.id !== id));
+  }
+
+  static replaceAccommodationsFromServer(items: Accommodation[]): void {
+    setItem(STORAGE_KEYS.ACCOMMODATIONS, items);
+  }
+
+  static upsertAccommodationFromServer(item: Accommodation): void {
+    const current = getItem<Accommodation[]>(STORAGE_KEYS.ACCOMMODATIONS, INITIAL_ACCOMMODATION).filter((a) => a.id !== item.id);
+    setItem(STORAGE_KEYS.ACCOMMODATIONS, [item, ...current]);
+  }
+
+  static replaceOrdersFromServer(orders: Order[]): void {
+    setItem(STORAGE_KEYS.ORDERS, orders.filter((o) => o.status !== 'payment_pending'));
+    const escrows: EscrowTransaction[] = orders
+      .filter((o) => o.status !== 'payment_pending' && o.status !== 'cancelled')
+      .map((o) => ({
+        id: `esc-${o.id}`, orderId: o.id, buyerId: o.buyerId, sellerId: o.sellerId, amount: o.amount, platformFee: o.platformFee,
+        sellerAmount: o.sellerReceives, status: o.escrowStatus, heldAt: o.createdAt, createdAt: o.createdAt,
+        releasedAt: o.completedAt,
+      }));
+    setItem(STORAGE_KEYS.ESCROWS, escrows);
+  }
+
   static getProducts(filters?: FilterOptions): Product[] {
     let products = getItem<Product[]>(STORAGE_KEYS.PRODUCTS, INITIAL_PRODUCTS);
 

@@ -304,14 +304,10 @@ export class SupabaseService {
           const supabase = getSupabase();
           if (supabase && isSupabaseConfigured()) {
             try {
-              const { data: profile } = await supabase
-                .from('profiles')
-                .select('email')
-                .eq('username', cleanInput)
-                .maybeSingle();
+              const { data: resolvedEmail } = await supabase.rpc('resolve_login_email', { p_username: cleanInput });
 
-              if (profile?.email) {
-                targetEmail = profile.email.toLowerCase();
+              if (typeof resolvedEmail === 'string' && resolvedEmail) {
+                targetEmail = resolvedEmail.toLowerCase();
               }
             } catch (err) {
               console.warn('Username query notice:', err);

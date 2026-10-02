@@ -9,6 +9,8 @@ import paystackInitializeHandler from "./api/payment/paystack/initialize";
 import paystackVerifyHandler from "./api/payment/paystack/verify/[reference]";
 import healthHandler from "./api/health";
 import adminUsersHandler from "./api/admin/users";
+import paystackWebhookHandler from "./api/payment/paystack/webhook";
+import orderActionHandler from "./api/orders/action";
 
 dotenv.config();
 
@@ -20,7 +22,18 @@ async function startServer() {
   const app = express();
   const PORT = 3000;
 
-  app.use(express.json({ limit: "10mb" }));
+  app.disable("x-powered-by");
+  app.use((_req, res, next) => {
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("X-Frame-Options", "DENY");
+    res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+    next();
+  });
+
+  // Webhook needs the RAW body for HMAC verification – must be mounted before express.json().
+  app.post("/api/payment/paystack/webhook", express.raw({ type: "*/*", limit: "1mb" }), paystackWebhookHandler);
+
+  app.use(express.json({ limit: "1mb" }));
 
   app.post("/api/studygen", studygenHandler);
   app.get("/api/payment/paystack/config", paystackConfigHandler);
@@ -28,6 +41,7 @@ async function startServer() {
   app.get("/api/payment/paystack/verify/:reference", paystackVerifyHandler);
   app.get("/api/health", healthHandler);
   app.all("/api/admin/users", adminUsersHandler);
+  app.post("/api/orders/action", orderActionHandler);
 
   // Vite middleware for dev or static serving for production
   if (process.env.NODE_ENV !== "production") {

@@ -2,6 +2,9 @@ import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { StorageService } from '../../services/storageService';
+import { MarketService } from '../../services/marketService';
+import { compressImage } from '../../lib/imageUtils';
+import { uploadImageToSupabase } from '../../lib/supabase';
 import { RoomType, RentalPeriod, Campus } from '../../types';
 import { X, Home, Plus, Trash2, ArrowRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -53,6 +56,7 @@ export const CreateAccommodationModal: React.FC<CreateAccommodationModalProps> =
   ]);
   const [newImageUrl, setNewImageUrl] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
 
   if (!isOpen) return null;
 
@@ -74,55 +78,91 @@ export const CreateAccommodationModal: React.FC<CreateAccommodationModalProps> =
     setNewImageUrl('');
   };
 
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files: File[] = Array.from((e.target.files || []) as ArrayLike<File>);
+    e.target.value = '';
+    for (const file of files) {
+      if (!file.type.startsWith('image/')) { error('Only image files are allowed.'); continue; }
+      if (file.size > 15 * 1024 * 1024) { error('Image is too large (max 15MB).'); continue; }
+      setIsUploading(true);
+      try {
+        const blob = await compressImage(file);
+        if (MarketService.enabled) {
+          const { url, error: upErr } = await uploadImageToSupabase(blob, 'accommodations');
+          if (!url) { error(upErr || 'Image upload failed. Please try again.'); continue; }
+          setImageUrls((prev) => (prev.length >= 4 ? prev : [...prev, url]));
+        } else {
+          const dataUrl: string = await new Promise((res, rej) => {
+            const r = new FileReader(); r.onload = () => res(r.result as string); r.onerror = rej; r.readAsDataURL(blob);
+          });
+          setImageUrls((prev) => (prev.length >= 4 ? prev : [...prev, dataUrl]));
+        }
+      } finally {
+        setIsUploading(false);
+      }
+    }
+  };
+
   const handleRemoveImage = (index: number) => {
     setImageUrls(imageUrls.filter((_, idx) => idx !== index));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting || isUploading) return;
 
-    if (!currentUser) {
-      error('Please log in to post accommodation listings.');
-      return;
-    }
-
+    if (!currentUser) { error('Please log in to post accommodation listings.'); return; }
     if (!title.trim() || !price || !description.trim() || !location.trim()) {
       error('Please fill in the title, price, location, and description.');
       return;
     }
+    const priceNum = Number(price);
+    if (!Number.isFinite(priceNum) || priceNum <= 0 || priceNum > 50_000_000) { error('Enter a valid rent amount.'); return; }
+    const phone = currentUser.phone || currentUser.whatsapp || '';
+    if (!phone) { error('Add a phone or WhatsApp number to your profile so students can contact you.'); return; }
+
+    const payload = {
+      ownerId: currentUser.id,
+      ownerName: currentUser.fullName,
+      ownerAvatar: currentUser.avatarUrl,
+      ownerPhone: phone,
+      ownerWhatsapp: (currentUser.whatsapp || phone).replace(/[^0-9]/g, ''),
+      title: title.trim(),
+      description: description.trim(),
+      location: location.trim(),
+      distanceToCampus: distanceToCampus.trim(),
+      campusId,
+      universityId: currentUser.universityId || 'uni-uniosun',
+      price: priceNum,
+      currency: 'NGN',
+      rentalPeriod,
+      roomType,
+      available: true,
+      images: imageUrls.length > 0 ? imageUrls : ['https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?auto=format&fit=crop&w=800&q=80'],
+      amenities: selectedAmenities,
+      status: 'active' as const,
+      featured: false,
+    };
 
     setIsSubmitting(true);
-
     try {
-      StorageService.createAccommodation({
-        ownerId: currentUser.id,
-        ownerName: currentUser.fullName,
-        ownerAvatar: currentUser.avatarUrl,
-        ownerPhone: currentUser.phone || '+2348000000000',
-        ownerWhatsapp: (currentUser.whatsapp || currentUser.phone || '2348000000000').replace(/[^0-9]/g, ''),
-        title: title.trim(),
-        description: description.trim(),
-        location: location.trim(),
-        distanceToCampus: distanceToCampus.trim(),
-        campusId,
-        universityId: currentUser.universityId || 'uni-uniosun',
-        price: Number(price),
-        currency: 'NGN',
-        rentalPeriod,
-        roomType,
-        available: true,
-        images: imageUrls.length > 0 ? imageUrls : ['https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?auto=format&fit=crop&w=800&q=80'],
-        amenities: selectedAmenities,
-        status: 'active',
-        featured: false,
-      });
-
+      if (MarketService.enabled) {
+        const res = await MarketService.createAccommodation(payload);
+        if (!res.success || !res.data) {
+          error(res.message || 'Failed to post accommodation. Please try again.');
+          return;
+        }
+        StorageService.upsertAccommodationFromServer(res.data);
+        MarketService.syncAll();
+      } else {
+        StorageService.createAccommodation(payload);
+      }
       success('Hostel accommodation listing posted successfully!');
-      setIsSubmitting(false);
       if (onSuccess) onSuccess();
       onClose();
     } catch {
       error('Failed to create accommodation listing.');
+    } finally {
       setIsSubmitting(false);
     }
   };
@@ -304,6 +344,10 @@ export const CreateAccommodationModal: React.FC<CreateAccommodationModalProps> =
                   placeholder="Paste direct hostel photo URL..."
                   className="flex-1 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs"
                 />
+                <label className="px-3 py-1.5 bg-teal-600 text-white rounded-xl text-xs font-semibold flex items-center gap-1 cursor-pointer">
+                  {isUploading ? 'Uploading…' : 'Upload'}
+                  <input type="file" accept="image/*" multiple onChange={handleFileUpload} className="hidden" />
+                </label>
                 <button
                   type="button"
                   onClick={handleAddImage}
@@ -337,7 +381,7 @@ export const CreateAccommodationModal: React.FC<CreateAccommodationModalProps> =
               </button>
               <button
                 type="submit"
-                disabled={isSubmitting}
+                disabled={isSubmitting || isUploading}
                 className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs sm:text-sm rounded-xl transition-all shadow-md shadow-emerald-600/20 active:scale-98 disabled:opacity-50 flex items-center gap-2"
               >
                 {isSubmitting ? 'Publishing...' : 'Publish Lodge Listing'}

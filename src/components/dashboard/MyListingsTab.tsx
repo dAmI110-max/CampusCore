@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Product, ProductStatus } from '../../types';
+import { MarketService } from '../../services/marketService';
 import { StorageService } from '../../services/storageService';
 import { useToast } from '../../context/ToastContext';
 import { Plus, Edit3, Eye, Pause, Play, CheckCircle2, Trash2 } from 'lucide-react';
@@ -24,9 +25,16 @@ export const MyListingsTab: React.FC<MyListingsTabProps> = ({
   const filteredProducts =
     activeTab === 'all' ? products : products.filter((p) => p.status === activeTab);
 
-  const handleStatusChange = (productId: string, newStatus: ProductStatus) => {
-    const updated = StorageService.updateProduct(productId, { status: newStatus });
-    if (updated) {
+  const handleStatusChange = async (productId: string, newStatus: ProductStatus) => {
+    let ok = false;
+    if (MarketService.enabled) {
+      const res = await MarketService.updateListing(productId, { status: newStatus });
+      if (res.success && res.data) { StorageService.upsertProductFromServer(res.data); ok = true; }
+      else { error(res.message || 'Failed to update listing status.'); return; }
+    } else {
+      ok = !!StorageService.updateProduct(productId, { status: newStatus });
+    }
+    if (ok) {
       success(
         newStatus === 'sold'
           ? 'Item marked as Sold Out! Great job.'
@@ -40,15 +48,21 @@ export const MyListingsTab: React.FC<MyListingsTabProps> = ({
     }
   };
 
-  const handleDelete = (productId: string) => {
-    if (window.confirm('Are you sure you want to delete this listing?')) {
-      const deleted = StorageService.deleteProduct(productId);
-      if (deleted) {
-        success('Listing deleted.');
-        onRefresh();
-      } else {
-        error('Failed to delete listing.');
-      }
+  const handleDelete = async (productId: string) => {
+    if (!window.confirm('Are you sure you want to delete this listing?')) return;
+    if (MarketService.enabled) {
+      const res = await MarketService.deleteListing(productId);
+      if (!res.success) { error(res.message || 'Failed to delete listing.'); return; }
+      StorageService.removeProductFromCache(productId);
+      success('Listing deleted.');
+      onRefresh();
+      return;
+    }
+    if (StorageService.deleteProduct(productId)) {
+      success('Listing deleted.');
+      onRefresh();
+    } else {
+      error('Failed to delete listing.');
     }
   };
 

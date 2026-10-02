@@ -1,64 +1,40 @@
 import { verifyUser } from '../../../_lib/verifyUser';
+import { getAdminClient } from '../../../_lib/supabaseAdmin';
+import { finalizePayment } from '../../../_lib/finalizePayment';
+import { rateLimit } from '../../../_lib/http';
 
 export default async function handler(req: any, res: any) {
   const user = await verifyUser(req);
-  if (!user) {
-    return res.status(401).json({ error: 'You must be signed in to verify a payment.' });
-  }
+  if (!user) return res.status(401).json({ error: 'Please sign in to verify a payment.' });
+  if (!rateLimit(`pay-verify:${user.id}`, 30, 60_000)) return res.status(429).json({ error: 'Too many requests.' });
 
   try {
-    // Vercel's dynamic route puts this in req.query; Express (local dev, via server.ts)
-    // puts it in req.params — support both so this same file works in either runtime.
     const reference = req.params?.reference || req.query?.reference;
-    if (!reference || typeof reference !== 'string') {
-      return res.status(400).json({ error: 'Transaction reference is required' });
+    if (typeof reference !== 'string' || !/^[A-Za-z0-9\-_.=]{6,100}$/.test(reference)) {
+      return res.status(400).json({ error: 'Invalid transaction reference.' });
     }
+    const secretKey = (process.env.PAYSTACK_SECRET_KEY || '').trim();
+    const db = getAdminClient();
+    if (!secretKey.startsWith('sk_') || !db) return res.status(503).json({ error: 'Payments are not configured on this server yet.' });
 
-    const secretKey = process.env.PAYSTACK_SECRET_KEY;
+    // A buyer may only verify their own order.
+    const { data: order } = await db.from('orders').select('id,buyer_id,seller_id,status').eq('order_number', reference).maybeSingle();
+    if (!order || order.buyer_id !== user.id) return res.status(404).json({ error: 'Order not found.' });
 
-    if (secretKey && secretKey.trim().startsWith('sk_')) {
-      const verifyRes = await fetch(`https://api.paystack.co/transaction/verify/${encodeURIComponent(reference)}`, {
-        headers: { Authorization: `Bearer ${secretKey.trim()}` },
-      });
+    const vr = await fetch(`https://api.paystack.co/transaction/verify/${encodeURIComponent(reference)}`, {
+      headers: { Authorization: `Bearer ${secretKey}` },
+    });
+    const vd = await vr.json().catch(() => ({}));
+    if (!vr.ok || !vd.status) return res.status(502).json({ verified: false, error: 'Could not reach Paystack. Your order will update automatically once payment is confirmed.' });
 
-      const verifyData = await verifyRes.json();
-      if (!verifyRes.ok || !verifyData.status) {
-        return res.status(400).json({ status: false, message: verifyData.message || 'Verification failed' });
-      }
-
-      return res.status(200).json({
-        status: true,
-        verified: verifyData.data.status === 'success',
-        data: verifyData.data,
-      });
+    if (vd.data.status !== 'success') {
+      return res.status(200).json({ verified: false, paystackStatus: vd.data.status, orderStatus: order.status });
     }
-
-    // --- Test-mode fallback -----------------------------------------------------
-    // SECURITY FIX: the original version of this endpoint returned `verified: true`
-    // for ANY reference — including made-up ones — whenever PAYSTACK_SECRET_KEY was
-    // unset. That's fine for local testing but is a critical hole in production: if
-    // the key was ever missing/misconfigured on a live deployment, anyone could fake
-    // a successful payment for free by calling this endpoint directly.
-    //
-    // Now this fallback only ever runs if you explicitly opt in with
-    // PAYSTACK_ALLOW_TEST_MODE=true — never as a silent default.
-    if (process.env.PAYSTACK_ALLOW_TEST_MODE === 'true') {
-      return res.status(200).json({
-        status: true,
-        verified: true,
-        data: {
-          reference,
-          status: 'success',
-          gateway_response: 'Successful (Test Mode)',
-          paid_at: new Date().toISOString(),
-          channel: 'card',
-        },
-      });
-    }
-
-    return res.status(503).json({ status: false, message: 'Payments are not configured on this server yet.' });
-  } catch (err: any) {
+    const result = await finalizePayment(db, vd.data, secretKey);
+    if (!result.ok) return res.status(result.code === 'ITEM_UNAVAILABLE' ? 409 : 400).json({ verified: false, code: result.code, error: result.message });
+    return res.status(200).json({ verified: true, orderId: order.id, orderStatus: result.status });
+  } catch (err) {
     console.error('Paystack verification error:', err);
-    return res.status(500).json({ error: 'Failed to verify transaction' });
+    return res.status(500).json({ error: 'Failed to verify transaction.' });
   }
 }

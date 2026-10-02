@@ -100,7 +100,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     // Local user fallback (handles demo users, super admins and offline storage)
-    const localUser = StorageService.getCurrentUser();
+    const localUser = isSupabaseConfigured() ? null : StorageService.getCurrentUser(); // SECURITY: never trust a localStorage 'logged-in' flag when Supabase is the auth authority
     if (localUser) {
       if (localUser.accountStatus === 'banned' || localUser.accountStatus === 'suspended') {
         setCurrentUser(null);
@@ -158,7 +158,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               }
             }
           } else if (mounted) {
-            const localUser = StorageService.getCurrentUser();
+            const localUser = isSupabaseConfigured() ? null : StorageService.getCurrentUser(); // SECURITY: never trust a localStorage 'logged-in' flag when Supabase is the auth authority
             if (localUser) {
               setCurrentUser(localUser);
             } else {
@@ -168,7 +168,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         } catch (err) {
           console.error('Auth initialization error:', err);
           if (mounted) {
-            const localUser = StorageService.getCurrentUser();
+            const localUser = isSupabaseConfigured() ? null : StorageService.getCurrentUser(); // SECURITY: never trust a localStorage 'logged-in' flag when Supabase is the auth authority
             if (localUser) {
               setCurrentUser(localUser);
             } else {
@@ -177,7 +177,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }
         }
       } else if (mounted) {
-        const localUser = StorageService.getCurrentUser();
+        const localUser = isSupabaseConfigured() ? null : StorageService.getCurrentUser(); // SECURITY: never trust a localStorage 'logged-in' flag when Supabase is the auth authority
         if (localUser) {
           setCurrentUser(localUser);
         } else {

@@ -319,7 +319,7 @@ BEGIN
   IF is_super_admin THEN
     initial_role := 'SUPER_ADMIN';
   ELSE
-    initial_role := COALESCE(NEW.raw_user_meta_data->>'role', 'STUDENT');
+    initial_role := 'STUDENT'; -- SECURITY: never trust client-supplied role metadata
   END IF;
 
   user_full_name := COALESCE(NEW.raw_user_meta_data->>'full_name', NEW.raw_user_meta_data->>'name', split_part(NEW.email, '@', 1));

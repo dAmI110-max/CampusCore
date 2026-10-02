@@ -64,7 +64,8 @@ export const getSupabase = (): SupabaseClient | null => {
 export const supabase = getSupabase();
 
 /**
- * Upload an image (avatar, product photo, accommodation) to Supabase Storage
+ * Upload an image (avatar, product photo, accommodation) to Supabase Storage.
+ * Files are stored under the signed-in user's own folder (enforced by storage RLS).
  */
 export async function uploadImageToSupabase(
   file: File | Blob,
@@ -73,28 +74,27 @@ export async function uploadImageToSupabase(
 ): Promise<{ url: string | null; error: string | null }> {
   const client = getSupabase();
   if (!client) {
-    return { url: null, error: 'Supabase storage is not configured' };
+    return { url: null, error: 'Image storage is not configured' };
   }
 
   try {
-    const ext = file.type.split('/')[1] || 'jpg';
-    const fileName = filePath || `${Date.now()}_${Math.random().toString(36).substring(2, 9)}.${ext}`;
+    const { data: sess } = await client.auth.getSession();
+    const uid = sess?.session?.user?.id;
+    if (!uid) return { url: null, error: 'Your session has expired. Please log in again.' };
+
+    const ext = (file.type.split('/')[1] || 'jpg').replace('jpeg', 'jpg').replace(/[^a-z0-9]/gi, '');
+    const base = filePath ? filePath.split('/').pop()! : `${Date.now()}_${Math.random().toString(36).substring(2, 9)}.${ext}`;
+    const fileName = `${uid}/${base.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
 
     const { data, error: uploadError } = await client.storage
       .from(bucket)
-      .upload(fileName, file, {
-        cacheControl: '3600',
-        upsert: true,
-      });
+      .upload(fileName, file, { cacheControl: '31536000', upsert: false, contentType: file.type || 'image/jpeg' });
 
     if (uploadError) {
       return { url: null, error: uploadError.message };
     }
 
-    const { data: publicUrlData } = client.storage
-      .from(bucket)
-      .getPublicUrl(data.path);
-
+    const { data: publicUrlData } = client.storage.from(bucket).getPublicUrl(data.path);
     return { url: publicUrlData.publicUrl, error: null };
   } catch (err: any) {
     return { url: null, error: err.message || 'Image upload failed' };

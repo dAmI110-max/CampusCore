@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
-import { StorageService } from '../../services/storageService';
+import { MarketService } from '../../services/marketService';
 import { Product, Order } from '../../types';
 import {
   ShieldCheck,
@@ -39,32 +39,34 @@ export const EscrowCheckoutModal: React.FC<EscrowCheckoutModalProps> = ({
 
   if (!currentUser) return null;
 
-  const handleCheckout = (e: React.FormEvent) => {
+  const handleCheckout = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isProcessing) return;
+
+    if (!MarketService.enabled) {
+      showError('Online payments are not available right now. Please contact the seller directly.');
+      return;
+    }
+    if (product.sellerId === currentUser.id) {
+      showError('You cannot buy your own listing.');
+      return;
+    }
 
     setIsProcessing(true);
+    // Server looks up the real price, creates the escrow order, and returns Paystack's secure checkout page.
+    const res = await MarketService.startCheckout(product.id, {
+      campus: deliveryCampus,
+      location: deliveryLocation,
+      notes: deliveryNotes,
+    });
 
-    setTimeout(() => {
-      const res = StorageService.createOrder(
-        currentUser.id,
-        product.id,
-        {
-          campus: deliveryCampus,
-          location: deliveryLocation,
-          notes: deliveryNotes,
-        },
-        'escrow_hold' as any
-      );
-
-      setIsProcessing(false);
-
-      if (res.success && res.order) {
-        success(`Order #${res.order.orderNumber} placed! Campus meetup inspection request sent to seller.`);
-        onSuccess(res.order);
-      } else {
-        showError(res.message || 'Failed to create order');
-      }
-    }, 600);
+    if (res.success && res.data?.url) {
+      success('Redirecting you to Paystack to complete payment…');
+      window.location.assign(res.data.url); // full-page redirect works reliably on iOS, Android and desktop
+      return; // keep the spinner until the browser navigates away
+    }
+    setIsProcessing(false);
+    showError(res.message || 'Could not start payment. Please try again.');
   };
 
   return (
@@ -162,22 +164,22 @@ export const EscrowCheckoutModal: React.FC<EscrowCheckoutModalProps> = ({
           <div className="text-[11px] text-slate-600 dark:text-slate-300 flex items-start gap-2 bg-indigo-50/70 dark:bg-indigo-950/40 p-3 rounded-xl border border-indigo-100 dark:border-indigo-900/50">
             <Lock className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0 mt-0.5" />
             <span>
-              <strong>Safe Student Meetup Protocol:</strong> Meet the seller in an active public campus area. Inspect and test the item thoroughly before finalizing your purchase.
+              <strong>Escrow protected:</strong> Your payment is held safely by CampusCore and only released to the seller after you confirm you received the item. Pay by card, bank transfer or USSD.
             </span>
           </div>
 
           {/* Price Breakdown */}
           <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200 dark:border-slate-700 text-xs text-slate-600 dark:text-slate-300 space-y-1.5">
             <div className="flex justify-between">
-              <span>Agreed Item Price:</span>
+              <span>Item Price:</span>
               <span className="font-bold text-slate-900 dark:text-white">₦{product.price.toLocaleString()}</span>
             </div>
             <div className="flex justify-between">
-              <span>Platform Verification:</span>
-              <span className="font-bold text-emerald-600 dark:text-emerald-400">FREE Verified Campus Plug</span>
+              <span>Buyer Protection:</span>
+              <span className="font-bold text-emerald-600 dark:text-emerald-400">Free (no extra fees)</span>
             </div>
             <div className="flex justify-between border-t border-slate-200 dark:border-slate-700 pt-1.5 font-bold text-slate-900 dark:text-white">
-              <span>Total Payable on Pickup:</span>
+              <span>Total to Pay Now:</span>
               <span className="text-indigo-600 dark:text-indigo-400 text-sm font-black">₦{product.price.toLocaleString()}</span>
             </div>
           </div>
@@ -191,12 +193,12 @@ export const EscrowCheckoutModal: React.FC<EscrowCheckoutModalProps> = ({
             {isProcessing ? (
               <>
                 <RefreshCw className="w-4 h-4 animate-spin" />
-                Sending Meetup Request...
+                Connecting to Paystack...
               </>
             ) : (
               <>
                 <ShieldCheck className="w-4 h-4" />
-                Request Campus Inspection & Place Order (₦{product.price.toLocaleString()})
+                Pay ₦{product.price.toLocaleString()} Securely with Paystack
               </>
             )}
           </button>

@@ -4,8 +4,7 @@ import { ToastProvider, useToast } from './context/ToastContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ModalProvider, useModal } from './context/ModalContext';
 import { StorageService } from './services/storageService';
-import { SupabaseService } from './services/supabaseService';
-import { isSupabaseConfigured } from './lib/supabase';
+import { MarketService } from './services/marketService';
 import {
   Product,
   Accommodation,
@@ -79,7 +78,7 @@ import { motion, AnimatePresence } from 'motion/react';
 const MainApp: React.FC = () => {
   const { currentUser, isSeller, isAdmin, isPasswordRecovery } = useAuth();
   const { activeModal, openModal, closeModal, isModalOpen } = useModal();
-  const { success } = useToast();
+  const { success, error: showError } = useToast();
 
   // Navigation State
   const VALID_VIEWS: AppViewMode[] = [
@@ -155,31 +154,55 @@ const MainApp: React.FC = () => {
     };
     window.addEventListener('campuscore_storage_update', handleStorageUpdate);
 
-    // Sync live listings from Supabase on mount
-    async function syncSupabaseData() {
-      if (isSupabaseConfigured()) {
-        try {
-          const listings = await SupabaseService.fetchListings();
-          if (listings) {
-            StorageService.syncProductsFromSupabase(listings);
-          }
-        } catch {
-          // ignore
-        }
-      }
-    }
-    syncSupabaseData();
-
-    const unsubListings = SupabaseService.subscribeToListings(() => {
-      syncSupabaseData();
-    });
+    // Keep EVERY device identical to the server: initial load, realtime pushes, tab re-focus, and a 45s safety poll.
+    const sync = () => { MarketService.syncAll(); };
+    sync();
+    const unsubLive = MarketService.subscribe(sync);
+    const onVisible = () => { if (document.visibilityState === 'visible') sync(); };
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', sync);
+    window.addEventListener('online', sync);
+    const poll = window.setInterval(sync, 45_000);
 
     return () => {
       if (updateTimer) window.clearTimeout(updateTimer);
       window.removeEventListener('campuscore_storage_update', handleStorageUpdate);
-      unsubListings();
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', sync);
+      window.removeEventListener('online', sync);
+      window.clearInterval(poll);
+      unsubLive();
     };
   }, []);
+
+  // Re-sync (orders are per-user) whenever the signed-in user changes.
+  useEffect(() => { MarketService.syncAll(); }, [currentUser?.id]);
+
+  // Paystack sends the buyer back here with ?reference=…  – verify server-side, then show the order.
+  const paymentRef = React.useRef<string | null>(
+    typeof window === 'undefined' ? null : (() => {
+      const q = new URLSearchParams(window.location.search);
+      const r = q.get('reference') || q.get('trxref');
+      return r && /^[A-Za-z0-9\-_.=]{6,100}$/.test(r) ? r : null;
+    })()
+  );
+  useEffect(() => {
+    const ref = paymentRef.current;
+    if (!ref || !currentUser) return;
+    paymentRef.current = null;
+    const q = new URLSearchParams(window.location.search);
+    q.delete('reference'); q.delete('trxref');
+    const qs = q.toString();
+    window.history.replaceState({}, '', `${window.location.pathname}${qs ? `?${qs}` : ''}${window.location.hash}`);
+    (async () => {
+      const res = await MarketService.verifyPayment(ref);
+      await MarketService.syncAll();
+      setCurrentView('orders');
+      if (res.success && res.data?.verified) success('Payment confirmed! Your money is safely held in escrow until you confirm delivery.');
+      else if (res.success) showError('Payment was not completed. You have not been charged.');
+      else showError(res.message || 'We could not confirm your payment yet. If you were charged, your order will appear shortly.');
+    })();
+  }, [currentUser]);
 
   const categories: Category[] = StorageService.getCategories();
   const campuses: Campus[] = StorageService.getCampuses('uni-uniosun');

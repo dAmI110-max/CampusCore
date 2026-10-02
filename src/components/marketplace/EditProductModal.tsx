@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Product, ProductCondition, ProductStatus } from '../../types';
+import { MarketService } from '../../services/marketService';
 import { StorageService } from '../../services/storageService';
 import { useToast } from '../../context/ToastContext';
 import { X, Edit3, Save, Trash2, Plus } from 'lucide-react';
@@ -58,32 +59,39 @@ export const EditProductModal: React.FC<EditProductModalProps> = ({
     setImages(images.filter((_, idx) => idx !== index));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim() || !price || !description.trim()) {
-      error('Please complete all required fields.');
+    if (isSubmitting) return;
+    const priceNum = Number(price);
+    if (!title.trim() || !description.trim() || !Number.isFinite(priceNum) || priceNum <= 0 || priceNum > 5_000_000) {
+      error('Please complete all required fields with a valid price.');
       return;
     }
 
     setIsSubmitting(true);
-    const updated = StorageService.updateProduct(product.id, {
+    const updates = {
       title: title.trim(),
-      price: Number(price),
+      price: priceNum,
       condition,
       status,
       location: location.trim(),
       description: description.trim(),
       images: images.length > 0 ? images : product.images,
-    });
-
-    setIsSubmitting(false);
-
-    if (updated) {
+    };
+    try {
+      if (MarketService.enabled) {
+        const res = await MarketService.updateListing(product.id, updates);
+        if (!res.success || !res.data) { error(res.message || 'Failed to update listing.'); return; }
+        StorageService.upsertProductFromServer(res.data);
+      } else if (!StorageService.updateProduct(product.id, updates)) {
+        error('Failed to update listing.');
+        return;
+      }
       success('Listing updated successfully!');
       if (onSuccess) onSuccess();
       onClose();
-    } else {
-      error('Failed to update listing.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 

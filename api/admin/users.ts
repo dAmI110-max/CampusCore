@@ -24,23 +24,32 @@ export default async function adminUsersHandler(req: Request, res: Response) {
     });
   }
 
-  // Verify caller authorization if authorization header provided
+  // --- AUTHORIZATION (was missing: anyone could previously dump every user's email/phone) ---
   const authHeader = req.headers.authorization;
-  let callerEmail: string | undefined;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ success: false, error: 'Authentication required.', data: [] });
+  }
+  const token = authHeader.substring(7).trim();
   let callerIsAdmin = false;
-
-  if (authHeader && authHeader.startsWith('Bearer ')) {
-    const token = authHeader.substring(7);
-    try {
-      const authClient = createClient(supabaseUrl, anonKey);
-      const { data: userData, error: userError } = await authClient.auth.getUser(token);
-      if (!userError && userData?.user) {
-        callerEmail = userData.user.email;
-        callerIsAdmin = isSuperAdminEmail(callerEmail);
-      }
-    } catch (e) {
-      // Failed to verify token
+  try {
+    const authClient = createClient(supabaseUrl, anonKey);
+    const { data: userData, error: userError } = await authClient.auth.getUser(token);
+    if (userError || !userData?.user) {
+      return res.status(401).json({ success: false, error: 'Invalid or expired session.', data: [] });
     }
+    const caller = userData.user;
+    if (serviceRoleKey && serviceRoleKey.length > 20) {
+      const dbClient = createClient(supabaseUrl, serviceRoleKey, { auth: { persistSession: false, autoRefreshToken: false } });
+      const { data: prof } = await dbClient.from('profiles').select('role,account_status').eq('id', caller.id).maybeSingle();
+      callerIsAdmin = !!prof && prof.account_status === 'active' && (prof.role === 'ADMIN' || prof.role === 'SUPER_ADMIN');
+    }
+    // Bootstrap admins only count when their email is CONFIRMED (prevents email-squatting takeover).
+    if (!callerIsAdmin && caller.email_confirmed_at && isSuperAdminEmail(caller.email)) callerIsAdmin = true;
+  } catch {
+    return res.status(401).json({ success: false, error: 'Could not verify session.', data: [] });
+  }
+  if (!callerIsAdmin) {
+    return res.status(403).json({ success: false, error: 'Administrator access required.', data: [] });
   }
 
   // 1. If service role key is available, use privileged admin client
@@ -143,7 +152,7 @@ export default async function adminUsersHandler(req: Request, res: Response) {
 
   // 2. Standard client query against public.profiles
   try {
-    const supabase = createClient(supabaseUrl, anonKey);
+    const supabase = createClient(supabaseUrl, anonKey, { global: { headers: { Authorization: `Bearer ${token}` } } });
     const { data, error } = await supabase
       .from('profiles')
       .select('*')
