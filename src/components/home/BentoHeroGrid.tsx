@@ -26,6 +26,7 @@ import { motion } from 'motion/react';
 interface BentoHeroGridProps {
   categories: Category[];
   featuredProducts: Product[];
+  latestProducts?: Product[];
   featuredAccommodations: Accommodation[];
   onSearch: (query: string) => void;
   onSelectCategory: (categoryId: string) => void;
@@ -39,6 +40,7 @@ interface BentoHeroGridProps {
 export const BentoHeroGrid: React.FC<BentoHeroGridProps> = ({
   categories,
   featuredProducts,
+  latestProducts,
   featuredAccommodations,
   onSearch,
   onSelectCategory,
@@ -66,8 +68,15 @@ export const BentoHeroGrid: React.FC<BentoHeroGridProps> = ({
   const userSold = userProducts.filter((p) => p.status === 'sold').length;
   const userLikes = userProducts.reduce((sum, p) => sum + (p.favoritesCount || 0), 0);
 
-  // Hot product pick for the featured bento tile (real product or null)
-  const hotProduct = featuredProducts.length > 0 ? featuredProducts[0] : null;
+  // Hot product pick for the featured bento tile:
+  // Prefer explicitly featured products, or latest active marketplace listings
+  const candidateProducts =
+    featuredProducts && featuredProducts.length > 0
+      ? featuredProducts
+      : latestProducts && latestProducts.length > 0
+      ? latestProducts
+      : StorageService.getProducts({ status: 'active' });
+  const hotProduct = candidateProducts.length > 0 ? candidateProducts[0] : null;
 
   const sampleHostels = featuredAccommodations.slice(0, 2);
 
@@ -270,12 +279,18 @@ export const BentoHeroGrid: React.FC<BentoHeroGridProps> = ({
               className="lg:col-span-4 bg-white dark:bg-slate-900/90 border border-purple-100/80 dark:border-purple-950/60 rounded-[28px] sm:rounded-[32px] overflow-hidden shadow-xs flex flex-col group cursor-pointer hover:shadow-md hover:border-purple-300 dark:hover:border-purple-700 transition-all"
             >
               <div className="h-44 bg-slate-100 dark:bg-slate-800 relative overflow-hidden flex items-center justify-center">
-                <img
-                  src={hotProduct.images[0]}
-                  alt={hotProduct.title}
-                  referrerPolicy="no-referrer"
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                />
+                {hotProduct.images && hotProduct.images.length > 0 ? (
+                  <img
+                    src={hotProduct.images[0]}
+                    alt={hotProduct.title}
+                    referrerPolicy="no-referrer"
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center bg-purple-50 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400">
+                    <PackageOpen className="w-12 h-12" />
+                  </div>
+                )}
                 <span className="text-[10px] absolute top-3.5 left-3.5 bg-white/90 dark:bg-slate-900/90 backdrop-blur-xs px-2.5 py-1 rounded-full font-bold text-purple-700 dark:text-purple-300 shadow-xs flex items-center gap-1 border border-purple-100 dark:border-slate-700">
                   <Flame className="w-3 h-3 text-rose-500 fill-rose-500" /> HOT ITEM
                 </span>
@@ -301,12 +316,18 @@ export const BentoHeroGrid: React.FC<BentoHeroGridProps> = ({
 
                 <div className="flex items-center justify-between mt-3 pt-3 border-t border-purple-50 dark:border-slate-800">
                   <div className="flex items-center gap-2">
-                    <img
-                      src={hotProduct.sellerAvatar}
-                      alt={hotProduct.sellerName}
-                      referrerPolicy="no-referrer"
-                      className="w-5 h-5 rounded-full object-cover ring-1 ring-purple-200 dark:ring-slate-700"
-                    />
+                    {hotProduct.sellerAvatar ? (
+                      <img
+                        src={hotProduct.sellerAvatar}
+                        alt={hotProduct.sellerName}
+                        referrerPolicy="no-referrer"
+                        className="w-5 h-5 rounded-full object-cover ring-1 ring-purple-200 dark:ring-slate-700"
+                      />
+                    ) : (
+                      <div className="w-5 h-5 rounded-full bg-purple-600 text-white flex items-center justify-center text-[9px] font-bold">
+                        {(hotProduct.sellerName || 'U').charAt(0).toUpperCase()}
+                      </div>
+                    )}
                     <span className="text-xs font-medium text-slate-600 dark:text-slate-300">{hotProduct.sellerName}</span>
                   </div>
                   <button

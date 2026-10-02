@@ -68,6 +68,7 @@ export const HomePage: React.FC<HomePageProps> = ({
         <BentoHeroGrid
           categories={categories}
           featuredProducts={featuredProducts}
+          latestProducts={latestProducts}
           featuredAccommodations={featuredAccommodations}
           onSearch={onSearch}
           onSelectCategory={onSelectCategory}
@@ -162,7 +163,7 @@ export const HomePage: React.FC<HomePageProps> = ({
         </div>
 
         {/* 4. Featured Listings Bento Section */}
-        {featuredProducts.length > 0 && (
+        {((featuredProducts.some((p) => p.featured)) || (latestProducts.length > 4)) && (
           <section className="py-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex items-center justify-between mb-6">
               <div>
@@ -182,7 +183,10 @@ export const HomePage: React.FC<HomePageProps> = ({
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-5">
-              {featuredProducts.slice(0, 4).map((product) => (
+              {(featuredProducts.some((p) => p.featured)
+                ? featuredProducts.filter((p) => p.featured)
+                : latestProducts
+              ).slice(0, 4).map((product) => (
                 <ProductCard
                   key={product.id}
                   product={product}

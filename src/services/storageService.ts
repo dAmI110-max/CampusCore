@@ -1266,7 +1266,10 @@ export class StorageService {
   }
 
   static getFeaturedProducts(): Product[] {
-    return this.getProducts({ onlyFeatured: true, status: 'active' });
+    const featured = this.getProducts({ onlyFeatured: true, status: 'active' });
+    if (featured.length > 0) return featured;
+    // Fallback: If no products are explicitly set to featured, showcase latest active marketplace listings
+    return this.getProducts({ status: 'active' });
   }
 
   static getProductsBySeller(sellerId: string): Product[] {

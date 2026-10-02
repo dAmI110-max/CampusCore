@@ -1,12 +1,15 @@
 -- ==========================================================
 -- CAMPUSCORE PRODUCTION DATABASE & AUTHENTICATION SCHEMA
 -- Designed for Supabase PostgreSQL & Row Level Security (RLS)
+-- Cleaned for Production: Zero Mock/Demo Data, Safe Backfill
 -- ==========================================================
 
 -- Enable required extensions
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
+-- ==========================================================
 -- 1. PROFILES TABLE (Connected to Supabase auth.users)
+-- ==========================================================
 CREATE TABLE IF NOT EXISTS public.profiles (
   id UUID REFERENCES auth.users(id) ON DELETE CASCADE PRIMARY KEY,
   auth_user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -16,19 +19,19 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   avatar_url TEXT,
   role TEXT NOT NULL DEFAULT 'STUDENT' CHECK (role IN ('STUDENT', 'SELLER', 'ADMIN', 'SUPER_ADMIN', 'USER')),
   seller_status TEXT NOT NULL DEFAULT 'NOT_SELLER' CHECK (seller_status IN ('NOT_SELLER', 'SELLER', 'VERIFIED_SELLER', 'RESTRICTED_SELLER', 'SUSPENDED_SELLER')),
-  university_id TEXT DEFAULT 'uni-uniosun',
-  university_name TEXT DEFAULT 'Osun State University',
-  campus_id TEXT DEFAULT 'campus-osogbo',
-  campus_name TEXT DEFAULT 'Osogbo Main Campus',
+  university_id TEXT,
+  university_name TEXT,
+  campus_id TEXT,
+  campus_name TEXT,
   faculty_id TEXT,
   faculty_name TEXT,
   department_id TEXT,
   department_name TEXT,
-  level TEXT DEFAULT '100L',
+  level TEXT,
   phone TEXT,
   whatsapp TEXT,
   telegram TEXT,
-  bio TEXT DEFAULT 'CampusCore Student',
+  bio TEXT,
   show_phone_publicly BOOLEAN DEFAULT TRUE,
   show_department_publicly BOOLEAN DEFAULT TRUE,
   verification_badge TEXT DEFAULT 'unverified' CHECK (verification_badge IN ('unverified', 'verified_student', 'trusted_seller')),
@@ -43,7 +46,9 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- ==========================================================
 -- 2. SELLERS TABLE
+-- ==========================================================
 CREATE TABLE IF NOT EXISTS public.sellers (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE UNIQUE NOT NULL,
@@ -54,7 +59,7 @@ CREATE TABLE IF NOT EXISTS public.sellers (
   whatsapp TEXT,
   faculty TEXT,
   department TEXT,
-  campus_id TEXT DEFAULT 'campus-osogbo',
+  campus_id TEXT,
   pickup_locations TEXT[] DEFAULT '{}',
   verification_status TEXT DEFAULT 'unverified' CHECK (verification_status IN ('unverified', 'verified_student', 'trusted_seller')),
   seller_status TEXT DEFAULT 'SELLER' CHECK (seller_status IN ('SELLER', 'VERIFIED_SELLER', 'RESTRICTED_SELLER', 'SUSPENDED_SELLER')),
@@ -64,13 +69,15 @@ CREATE TABLE IF NOT EXISTS public.sellers (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- ==========================================================
 -- 3. MARKETPLACE LISTINGS TABLE
+-- ==========================================================
 CREATE TABLE IF NOT EXISTS public.listings (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   seller_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
   seller_name TEXT NOT NULL,
   seller_avatar TEXT,
-  seller_campus TEXT NOT NULL DEFAULT 'Osogbo Main Campus',
+  seller_campus TEXT,
   seller_phone TEXT,
   seller_whatsapp TEXT,
   category_id TEXT NOT NULL,
@@ -81,7 +88,7 @@ CREATE TABLE IF NOT EXISTS public.listings (
   price NUMERIC NOT NULL CHECK (price >= 0),
   original_price NUMERIC,
   condition TEXT NOT NULL DEFAULT 'Used' CHECK (condition IN ('New', 'Like New', 'Used', 'Fair', 'Refurbished')),
-  campus_id TEXT NOT NULL DEFAULT 'campus-osogbo',
+  campus_id TEXT NOT NULL,
   images TEXT[] NOT NULL DEFAULT '{}',
   status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('draft', 'active', 'sold', 'paused', 'removed', 'pending')),
   views_count INTEGER DEFAULT 0,
@@ -92,7 +99,9 @@ CREATE TABLE IF NOT EXISTS public.listings (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 4. LISTING IMAGES TABLE (Optional for multi-image relational mapping)
+-- ==========================================================
+-- 4. LISTING IMAGES TABLE
+-- ==========================================================
 CREATE TABLE IF NOT EXISTS public.listing_images (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   listing_id UUID REFERENCES public.listings(id) ON DELETE CASCADE NOT NULL,
@@ -101,7 +110,9 @@ CREATE TABLE IF NOT EXISTS public.listing_images (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- ==========================================================
 -- 5. ORDERS & ESCROW TABLE
+-- ==========================================================
 CREATE TABLE IF NOT EXISTS public.orders (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   order_number TEXT UNIQUE NOT NULL,
@@ -125,7 +136,9 @@ CREATE TABLE IF NOT EXISTS public.orders (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- ==========================================================
 -- 6. REPORTS TABLE
+-- ==========================================================
 CREATE TABLE IF NOT EXISTS public.reports (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   reporter_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
@@ -143,7 +156,9 @@ CREATE TABLE IF NOT EXISTS public.reports (
   resolution_notes TEXT
 );
 
+-- ==========================================================
 -- 7. AUDIT LOGS TABLE
+-- ==========================================================
 CREATE TABLE IF NOT EXISTS public.audit_logs (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   admin_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
@@ -157,7 +172,9 @@ CREATE TABLE IF NOT EXISTS public.audit_logs (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- ==========================================================
 -- 8. ADMIN MANAGEMENT TABLE
+-- ==========================================================
 CREATE TABLE IF NOT EXISTS public.admin_users (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE UNIQUE NOT NULL,
@@ -258,6 +275,7 @@ CREATE POLICY "Reporters and Admins can view reports"
     OR EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role IN ('ADMIN', 'SUPER_ADMIN'))
   );
 
+-- Admins can update reports
 CREATE POLICY "Admins can update reports" 
   ON public.reports FOR UPDATE USING (
     EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role IN ('ADMIN', 'SUPER_ADMIN'))
@@ -278,7 +296,7 @@ CREATE POLICY "Admins can insert audit logs"
 CREATE POLICY "Admins viewable by authenticated users" 
   ON public.admin_users FOR SELECT USING (auth.role() = 'authenticated');
 
-CREATE POLICY "Super Admins can manage admin users"
+CREATE POLICY "Super Admins can manage admin users" 
   ON public.admin_users FOR ALL USING (
     EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'SUPER_ADMIN')
   );
@@ -295,7 +313,8 @@ DECLARE
   user_full_name TEXT;
   user_username TEXT;
 BEGIN
-  is_super_admin := (NEW.email = 'bhadmusoluwadamilare@gmail.com' OR NEW.email = 'davesbrown88@gmail.com');
+  -- Designate Super Admin based on explicit authorized addresses
+  is_super_admin := (lower(NEW.email) = 'davesbrown88@gmail.com' OR lower(NEW.email) = 'bhadmusoluwadamilare@gmail.com');
   
   IF is_super_admin THEN
     initial_role := 'SUPER_ADMIN';
@@ -336,30 +355,29 @@ BEGIN
     NEW.email,
     user_full_name,
     user_username,
-    COALESCE(NEW.raw_user_meta_data->>'avatar_url', 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=200&q=80'),
+    NEW.raw_user_meta_data->>'avatar_url',
     initial_role,
     CASE WHEN is_super_admin THEN 'VERIFIED_SELLER' ELSE 'NOT_SELLER' END,
     is_super_admin,
-    COALESCE(NEW.raw_user_meta_data->>'university_id', 'uni-uniosun'),
-    COALESCE(NEW.raw_user_meta_data->>'university_name', 'Osun State University'),
-    COALESCE(NEW.raw_user_meta_data->>'campus_id', 'campus-osogbo'),
-    COALESCE(NEW.raw_user_meta_data->>'campus_name', 'Osogbo Main Campus'),
+    NEW.raw_user_meta_data->>'university_id',
+    NEW.raw_user_meta_data->>'university_name',
+    NEW.raw_user_meta_data->>'campus_id',
+    NEW.raw_user_meta_data->>'campus_name',
     NEW.raw_user_meta_data->>'faculty_id',
     NEW.raw_user_meta_data->>'faculty_name',
     NEW.raw_user_meta_data->>'department_id',
     NEW.raw_user_meta_data->>'department_name',
-    COALESCE(NEW.raw_user_meta_data->>'level', '100L'),
+    NEW.raw_user_meta_data->>'level',
     NEW.raw_user_meta_data->>'phone',
     NEW.raw_user_meta_data->>'whatsapp',
-    CASE WHEN is_super_admin THEN 'Founder & Super Administrator of CampusCore by Ace Tech.' ELSE 'Student at Osun State University.' END,
+    COALESCE(NEW.raw_user_meta_data->>'bio', CASE WHEN is_super_admin THEN 'CampusCore Super Administrator' ELSE NULL END),
     CASE WHEN is_super_admin THEN 'trusted_seller' ELSE 'unverified' END,
     'active'
   )
-  ON CONFLICT (id) DO UPDATE SET
-    email = EXCLUDED.email,
-    updated_at = NOW();
+  -- DO NOTHING on conflict so existing profile updates and edits are never overwritten
+  ON CONFLICT (id) DO NOTHING;
 
-  -- If super admin, also record in admin_users
+  -- If super admin, record in admin_users if not already present
   IF is_super_admin THEN
     INSERT INTO public.admin_users (
       user_id,
@@ -399,6 +417,7 @@ CREATE POLICY "Authenticated users can upload listing images" ON storage.objects
 
 -- ==========================================================
 -- BACKFILL EXISTING AUTH USERS INTO PROFILES TABLE
+-- Safe: Uses ON CONFLICT (id) DO NOTHING so existing profiles are NEVER overwritten
 -- ==========================================================
 INSERT INTO public.profiles (
   id,
@@ -433,32 +452,48 @@ SELECT
   u.email,
   COALESCE(u.raw_user_meta_data->>'full_name', u.raw_user_meta_data->>'name', split_part(u.email, '@', 1)),
   COALESCE(NULLIF(u.raw_user_meta_data->>'username', ''), split_part(u.email, '@', 1) || '_' || substr(replace(u.id::text, '-', ''), 1, 4)),
-  COALESCE(u.raw_user_meta_data->>'avatar_url', 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=200&q=80'),
-  CASE WHEN (lower(u.email) = 'bhadmusoluwadamilare@gmail.com' OR lower(u.email) = 'davesbrown88@gmail.com') THEN 'SUPER_ADMIN'
+  u.raw_user_meta_data->>'avatar_url',
+  CASE WHEN (lower(u.email) = 'davesbrown88@gmail.com' OR lower(u.email) = 'bhadmusoluwadamilare@gmail.com') THEN 'SUPER_ADMIN'
        ELSE COALESCE(u.raw_user_meta_data->>'role', 'STUDENT') END,
-  CASE WHEN (lower(u.email) = 'bhadmusoluwadamilare@gmail.com' OR lower(u.email) = 'davesbrown88@gmail.com') THEN 'VERIFIED_SELLER'
+  CASE WHEN (lower(u.email) = 'davesbrown88@gmail.com' OR lower(u.email) = 'bhadmusoluwadamilare@gmail.com') THEN 'VERIFIED_SELLER'
        ELSE 'NOT_SELLER' END,
-  (lower(u.email) = 'bhadmusoluwadamilare@gmail.com' OR lower(u.email) = 'davesbrown88@gmail.com'),
-  COALESCE(u.raw_user_meta_data->>'university_id', 'uni-uniosun'),
-  COALESCE(u.raw_user_meta_data->>'university_name', 'Osun State University'),
-  COALESCE(u.raw_user_meta_data->>'campus_id', 'campus-osogbo'),
-  COALESCE(u.raw_user_meta_data->>'campus_name', 'Osogbo Main Campus'),
+  (lower(u.email) = 'davesbrown88@gmail.com' OR lower(u.email) = 'bhadmusoluwadamilare@gmail.com'),
+  u.raw_user_meta_data->>'university_id',
+  u.raw_user_meta_data->>'university_name',
+  u.raw_user_meta_data->>'campus_id',
+  u.raw_user_meta_data->>'campus_name',
   u.raw_user_meta_data->>'faculty_id',
   u.raw_user_meta_data->>'faculty_name',
   u.raw_user_meta_data->>'department_id',
   u.raw_user_meta_data->>'department_name',
-  COALESCE(u.raw_user_meta_data->>'level', '100L'),
+  u.raw_user_meta_data->>'level',
   u.raw_user_meta_data->>'phone',
   u.raw_user_meta_data->>'whatsapp',
-  CASE WHEN (lower(u.email) = 'bhadmusoluwadamilare@gmail.com' OR lower(u.email) = 'davesbrown88@gmail.com') THEN 'Founder & Super Administrator of CampusCore.' ELSE 'Student at Osun State University.' END,
-  CASE WHEN (lower(u.email) = 'bhadmusoluwadamilare@gmail.com' OR lower(u.email) = 'davesbrown88@gmail.com') THEN 'trusted_seller' ELSE 'unverified' END,
+  COALESCE(u.raw_user_meta_data->>'bio', CASE WHEN (lower(u.email) = 'davesbrown88@gmail.com' OR lower(u.email) = 'bhadmusoluwadamilare@gmail.com') THEN 'CampusCore Super Administrator' ELSE NULL END),
+  CASE WHEN (lower(u.email) = 'davesbrown88@gmail.com' OR lower(u.email) = 'bhadmusoluwadamilare@gmail.com') THEN 'trusted_seller' ELSE 'unverified' END,
   'active',
   COALESCE(u.created_at, NOW()),
   NOW()
 FROM auth.users u
-ON CONFLICT (id) DO UPDATE SET
-  email = EXCLUDED.email,
-  updated_at = NOW();
+ON CONFLICT (id) DO NOTHING;
+
+-- Backfill Super Admin role in admin_users safely
+INSERT INTO public.admin_users (
+  user_id,
+  email,
+  full_name,
+  role,
+  status
+)
+SELECT
+  u.id,
+  u.email,
+  COALESCE(u.raw_user_meta_data->>'full_name', u.raw_user_meta_data->>'name', split_part(u.email, '@', 1)),
+  'SUPER_ADMIN',
+  'active'
+FROM auth.users u
+WHERE lower(u.email) IN ('davesbrown88@gmail.com', 'bhadmusoluwadamilare@gmail.com')
+ON CONFLICT (user_id) DO NOTHING;
 
 -- Notify PostgREST to reload schema cache
 NOTIFY pgrst, 'reload schema';
