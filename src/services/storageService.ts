@@ -632,13 +632,42 @@ export class StorageService {
 
   static updateUser(id: string, updates: Partial<UserProfile>, callerIsAdmin = false): UserProfile | null {
     const users = this.getUsers();
-    const index = users.findIndex((u) => u.id === id);
-    if (index === -1) return null;
+    let index = users.findIndex((u) => u.id === id);
 
-    // Security sanitization: normal users cannot elevate roles or alter account status / metrics
+    // If user is not yet in the local list, insert them as a new user record
+    if (index === -1) {
+      const newUser: UserProfile = {
+        ...updates,
+        id,
+        authUserId: id,
+        email: updates.email || '',
+        fullName: updates.fullName || 'Student User',
+        username: updates.username || `user_${id.slice(0, 6)}`,
+        avatarUrl: updates.avatarUrl || '',
+        role: updates.role || 'STUDENT',
+        sellerStatus: updates.sellerStatus || 'NOT_SELLER',
+        universityId: updates.universityId || 'uni-uniosun',
+        universityName: updates.universityName || 'Osun State University',
+        campusId: updates.campusId || 'campus-osogbo',
+        campusName: updates.campusName || 'Osogbo Main Campus',
+        showPhonePublicly: updates.showPhonePublicly ?? true,
+        showDepartmentPublicly: updates.showDepartmentPublicly ?? true,
+        verificationBadge: updates.verificationBadge || 'unverified',
+        accountStatus: updates.accountStatus || 'active',
+        createdAt: updates.createdAt || new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      users.push(newUser);
+      setItem(STORAGE_KEYS.USERS, users);
+      index = users.length - 1;
+    }
+
+    // Security sanitization: normal users cannot elevate roles (except seller activation) or alter account status / metrics
     const safeUpdates = { ...updates };
     if (!callerIsAdmin) {
-      delete safeUpdates.role;
+      if (safeUpdates.role !== 'SELLER') {
+        delete safeUpdates.role;
+      }
       delete safeUpdates.accountStatus;
       delete safeUpdates.verificationBadge;
       delete safeUpdates.rating;
@@ -930,20 +959,27 @@ export class StorageService {
       sellerPickupLocations?: string[];
       phone?: string;
       whatsapp?: string;
-    }
+    },
+    userFallback?: UserProfile | null
   ): { success: boolean; user?: UserProfile } {
-    const user = this.getUserById(userId);
-    if (!user) return { success: false };
+    let user = this.getUserById(userId);
+    if (!user && userFallback) {
+      this.updateUser(userId, userFallback);
+      user = this.getUserById(userId);
+    }
+
+    const targetRole = (user?.role === 'SUPER_ADMIN' || userFallback?.role === 'SUPER_ADMIN') ? 'SUPER_ADMIN' : 'SELLER';
 
     const updated = this.updateUser(userId, {
+      role: targetRole,
       sellerStatus: 'SELLER',
       sellerOnboardingCompleted: true,
-      bio: data.sellerBio || user.bio,
-      sellerBio: data.sellerBio || user.bio,
+      bio: data.sellerBio || user?.bio || userFallback?.bio,
+      sellerBio: data.sellerBio || user?.bio || userFallback?.bio,
       sellerPickupLocations: data.sellerPickupLocations || ['Oke-Baale Campus Gate', 'Campus SUB'],
-      phone: data.phone || user.phone,
-      whatsapp: data.whatsapp || user.whatsapp,
-    });
+      phone: data.phone || user?.phone || userFallback?.phone,
+      whatsapp: data.whatsapp || user?.whatsapp || userFallback?.whatsapp || data.phone,
+    }, true);
 
     if (updated) {
       this.createNotification({

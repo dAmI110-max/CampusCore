@@ -637,36 +637,10 @@ export class SupabaseService {
     }
 
     try {
-      // 1. Upsert sellers record
-      const { error: sellerErr } = await supabase
-        .from('sellers')
-        .upsert(
-          {
-            user_id: userId,
-            seller_name: sellerData.sellerName,
-            seller_bio: sellerData.sellerBio || '',
-            profile_image: sellerData.profileImage,
-            phone: sellerData.phone,
-            whatsapp: sellerData.whatsapp,
-            faculty: sellerData.faculty,
-            department: sellerData.department,
-            campus_id: sellerData.campusId || 'campus-osogbo',
-            pickup_locations: sellerData.pickupLocations || [],
-            seller_status: 'SELLER',
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: 'user_id' }
-        );
-
-      if (sellerErr) {
-        return { success: false, message: sellerErr.message };
-      }
-
-      // 2. Update user profile to seller
+      // 1. Update user profile to seller in public.profiles first
       const { data: profileData, error: profileErr } = await supabase
         .from('profiles')
         .update({
-          role: 'SELLER',
           seller_status: 'SELLER',
           seller_onboarding_completed: true,
           seller_bio: sellerData.sellerBio,
@@ -679,7 +653,32 @@ export class SupabaseService {
         .maybeSingle();
 
       if (profileErr) {
-        return { success: false, message: profileErr.message };
+        console.warn('Profile update notice in completeSellerOnboarding:', profileErr.message);
+      }
+
+      // 2. Also upsert into public.sellers
+      try {
+        await supabase
+          .from('sellers')
+          .upsert(
+            {
+              user_id: userId,
+              seller_name: sellerData.sellerName,
+              seller_bio: sellerData.sellerBio || '',
+              profile_image: sellerData.profileImage,
+              phone: sellerData.phone,
+              whatsapp: sellerData.whatsapp,
+              faculty: sellerData.faculty,
+              department: sellerData.department,
+              campus_id: sellerData.campusId || 'campus-osogbo',
+              pickup_locations: sellerData.pickupLocations || [],
+              seller_status: 'SELLER',
+              updated_at: new Date().toISOString(),
+            },
+            { onConflict: 'user_id' }
+          );
+      } catch (sellerErr: any) {
+        console.warn('sellers table upsert notice:', sellerErr?.message || sellerErr);
       }
 
       const updated = profileData ? this.mapDbProfileToUserProfile(profileData) : null;

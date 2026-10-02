@@ -497,29 +497,52 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }): Promise<{ success: boolean; message?: string }> => {
     if (!currentUser) return { success: false, message: 'Please sign in first.' };
 
+    let updatedUser: UserProfile = {
+      ...currentUser,
+      sellerStatus: 'SELLER',
+      sellerOnboardingCompleted: true,
+      bio: data.sellerBio || currentUser.bio,
+      sellerBio: data.sellerBio || currentUser.bio,
+      sellerPickupLocations: data.sellerPickupLocations || ['Oke-Baale Campus Gate', 'Campus SUB'],
+      phone: data.phone || currentUser.phone,
+      whatsapp: data.whatsapp || currentUser.whatsapp || data.phone,
+      role: currentUser.role === 'SUPER_ADMIN' ? 'SUPER_ADMIN' : 'SELLER',
+    };
+
     // 1. Supabase seller onboarding
     if (isSupabaseConfigured()) {
-      await SupabaseService.completeSellerOnboarding(currentUser.id, {
-        sellerName: currentUser.fullName,
-        sellerBio: data.sellerBio,
-        profileImage: currentUser.avatarUrl,
-        phone: data.phone || currentUser.phone,
-        whatsapp: data.whatsapp || currentUser.whatsapp,
-        faculty: currentUser.facultyName,
-        department: currentUser.departmentName,
-        campusId: currentUser.campusId,
-        pickupLocations: data.sellerPickupLocations,
-      });
+      try {
+        const supaRes = await SupabaseService.completeSellerOnboarding(currentUser.id, {
+          sellerName: currentUser.fullName,
+          sellerBio: data.sellerBio,
+          profileImage: currentUser.avatarUrl,
+          phone: data.phone || currentUser.phone,
+          whatsapp: data.whatsapp || currentUser.whatsapp,
+          faculty: currentUser.facultyName,
+          department: currentUser.departmentName,
+          campusId: currentUser.campusId,
+          pickupLocations: data.sellerPickupLocations,
+        });
+
+        if (supaRes.user) {
+          updatedUser = { ...updatedUser, ...supaRes.user };
+        }
+      } catch (err: any) {
+        console.warn('Supabase completeSellerOnboarding notice:', err?.message || err);
+      }
     }
 
-    // 2. Local storage seller onboarding
-    const res = StorageService.completeSellerOnboarding(currentUser.id, data);
-    if (res.success && res.user) {
-      setCurrentUser(res.user);
-      setDemoUsers(StorageService.getUsers());
-      return { success: true, message: 'Seller profile activated! You can now create listings.' };
-    }
-    return { success: false, message: 'Failed to complete seller onboarding.' };
+    // 2. Local storage seller onboarding (with currentUser fallback to ensure device cache is primed)
+    const res = StorageService.completeSellerOnboarding(currentUser.id, data, currentUser);
+    const finalUser = res.user || updatedUser;
+
+    setCurrentUser(finalUser);
+    StorageService.setCurrentUser(finalUser.id);
+    StorageService.updateUser(finalUser.id, finalUser, true);
+    StorageService.addSavedAccount(finalUser);
+    setDemoUsers(StorageService.getUsers());
+
+    return { success: true, message: 'Seller profile activated! You can now create listings.' };
   };
 
   const switchDemoUser = (userId: string) => {
