@@ -1,29 +1,38 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
-// Access environment variables safely with Vite and common hosting providers (Vercel, Netlify)
+// Access environment variables safely with Vite and common hosting providers (Vercel, Netlify).
+// IMPORTANT: the browser should only see anon/publishable values (VITE_ / NEXT_PUBLIC_).
+// Never expose SUPABASE_SERVICE_ROLE_KEY to the frontend; keep it server-side only.
 const metaEnv = ((import.meta as any).env || {}) as Record<string, string | undefined>;
 
+const readClientEnv = (keys: string[]): string => {
+  for (const key of keys) {
+    const value = metaEnv[key]?.trim();
+    if (value) return value;
+  }
+
+  if (typeof window !== 'undefined') {
+    const injectedEnv = (window as any).__ENV || {};
+    for (const key of keys) {
+      const value = String(injectedEnv[key] ?? '').trim();
+      if (value) return value;
+    }
+  }
+
+  return '';
+};
+
 export const getSupabaseUrl = (): string => {
-  return (
-    metaEnv.VITE_SUPABASE_URL ||
-    metaEnv.SUPABASE_URL ||
-    metaEnv.NEXT_PUBLIC_SUPABASE_URL ||
-    (typeof window !== 'undefined' && (window as any).__ENV__?.VITE_SUPABASE_URL) ||
-    ''
-  ).trim();
+  return readClientEnv(['VITE_SUPABASE_URL', 'NEXT_PUBLIC_SUPABASE_URL']);
 };
 
 export const getSupabaseAnonKey = (): string => {
-  return (
-    metaEnv.VITE_SUPABASE_ANON_KEY ||
-    metaEnv.VITE_SUPABASE_KEY ||
-    metaEnv.SUPABASE_ANON_KEY ||
-    metaEnv.SUPABASE_KEY ||
-    metaEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-    metaEnv.NEXT_PUBLIC_SUPABASE_KEY ||
-    (typeof window !== 'undefined' && (window as any).__ENV__?.VITE_SUPABASE_ANON_KEY) ||
-    ''
-  ).trim();
+  return readClientEnv([
+    'VITE_SUPABASE_ANON_KEY',
+    'NEXT_PUBLIC_SUPABASE_ANON_KEY',
+    'VITE_SUPABASE_KEY',
+    'NEXT_PUBLIC_SUPABASE_KEY',
+  ]);
 };
 
 export const isSupabaseConfigured = (): boolean => {
@@ -39,10 +48,25 @@ export const isSupabaseConfigured = (): boolean => {
   );
 };
 
+export const isFrontendSupabaseServiceRoleExposed = (): boolean => {
+  const keys = ['VITE_SUPABASE_SERVICE_ROLE_KEY', 'NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY', 'SUPABASE_SERVICE_ROLE_KEY'];
+  for (const key of keys) {
+    if (metaEnv[key] || (typeof window !== 'undefined' && (window as any).__ENV?.[key])) {
+      return true;
+    }
+  }
+  return false;
+};
+
 // Singleton Supabase client instance
 let supabaseInstance: SupabaseClient | null = null;
 
 export const getSupabase = (): SupabaseClient | null => {
+  if (isFrontendSupabaseServiceRoleExposed()) {
+    console.warn('Supabase service-role key detected in browser-exposed environment. This is a security risk and must remain server-side only.');
+    return null;
+  }
+
   if (!isSupabaseConfigured()) {
     return null;
   }
