@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { MarketService } from '../../services/marketService';
 import { StorageService } from '../../services/storageService';
 import { useToast } from '../../context/ToastContext';
 import { ServiceListing } from '../../types';
@@ -36,7 +37,7 @@ export const ServiceBookingModal: React.FC<ServiceBookingModalProps> = ({
   onClose,
   onSuccess,
 }) => {
-  const { currentUser } = useAuth();
+  const { currentUser, contactPhone, hasContactNumber } = useAuth();
   const { success, error: toastError } = useToast();
 
   const [date, setDate] = useState(
@@ -51,18 +52,23 @@ export const ServiceBookingModal: React.FC<ServiceBookingModalProps> = ({
 
   if (!isOpen || !service || !currentUser) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitting) return;
+    if (MarketService.enabled && !hasContactNumber) {
+      toastError('Add your phone number first so the provider can reach you (Profile → Edit Profile).');
+      return;
+    }
     setSubmitting(true);
 
     try {
-      const res = StorageService.createBooking({
+      const bookingData = {
         serviceId: service.id,
         serviceTitle: service.title,
         customerId: currentUser.id,
         customerName: currentUser.fullName,
         customerAvatar: currentUser.avatarUrl || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&auto=format&fit=crop&q=80',
-        customerPhone: currentUser.phone || '08012345678',
+        customerPhone: contactPhone || undefined,
         providerId: service.providerId,
         providerName: service.providerName,
         providerAvatar: service.providerAvatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80',
@@ -74,7 +80,10 @@ export const ServiceBookingModal: React.FC<ServiceBookingModalProps> = ({
         price: service.startingPrice,
         currency: 'NGN',
         notes: notes.trim() || undefined,
-      });
+      };
+      const res: { success: boolean; error?: string } = MarketService.enabled
+        ? await MarketService.createBooking(bookingData as any).then((r) => ({ success: r.success, error: r.message }))
+        : StorageService.createBooking(bookingData as any);
 
       if (!res.success) {
         toastError(res.error || 'Failed to create booking.');

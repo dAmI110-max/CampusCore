@@ -23,8 +23,10 @@ import {
   LifeBuoy,
   ChevronDown,
   Compass,
+  Pencil,
 } from 'lucide-react';
 import { CampusCoreLogo } from '../common/CampusCoreLogo';
+import { useProfileEditor } from '../../context/ProfileEditorContext';
 import { ThemeToggle } from '../common/ThemeToggle';
 import { AppViewMode } from '../../types';
 
@@ -55,7 +57,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenSupport,
   onOpenSellerOnboarding,
 }) => {
-  const { currentUser, isSuperAdmin, isAdmin, isSeller, logout } = useAuth();
+  const { currentUser, isSuperAdmin, isAdmin, isSeller, logout, hasContactNumber } = useAuth();
+  const { openEditProfile } = useProfileEditor();
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [showExploreDropdown, setShowExploreDropdown] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
@@ -539,6 +542,22 @@ export const Navbar: React.FC<NavbarProps> = ({
                     >
                       <Home className="w-4 h-4 text-purple-600 dark:text-purple-400" />
                       My Profile & Listings
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        openEditProfile();
+                        setShowUserDropdown(false);
+                      }}
+                      className="w-full text-left px-3 py-2 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors flex items-center justify-between"
+                    >
+                      <span className="flex items-center gap-2.5">
+                        <Pencil className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                        Edit Profile
+                      </span>
+                      {!hasContactNumber && (
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700">Add phone</span>
+                      )}
                     </button>
 
                     <button

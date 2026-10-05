@@ -35,3 +35,22 @@ Messages/chat, jobs, services, events/tickets, communities, businesses, roommate
 
 ## Verification honestly stated
 No network in my sandbox, so I could **not** run `npm install`, build, or the live app. What I did run: 5 passing unit tests on the payment/escrow/signature logic (`npm test`) and a TypeScript check of all files (clean apart from stubbed third-party types). Please run `npm install && npm run lint && npm run build` and one test purchase before launch. The CSP is strict – if a feature breaks, check the browser console for "Refused to…" and add the host.
+
+---
+## Profile update (login → profile → listings)
+- **One shared profile loader** (`AuthContext.loadSessionProfile`) now pulls name, phone, WhatsApp, avatar, seller status from the database on page load, login, token events and when you return to the tab. Exposed globally via `useAuth()`: `currentUser`, `contactPhone`, `contactWhatsapp`, `hasContactNumber`, `isProfileLoading`, `refreshProfile()`.
+- **Bug fixed:** a failed profile read could overwrite saved phone/bio/avatar with blanks (`ensureProfile` upserted defaults). It now only creates a profile when the database confirms none exists, and never overwrites.
+- **Edit Profile** button: Navbar menu + dashboard header (`openEditProfile()` from `useProfileEditor()` works anywhere). Change photo (compressed), name, phone, WhatsApp, Telegram, bio, privacy toggle.
+- **Listing forms** (product, hostel, service) show the saved number, or let users add one inline; the number is saved to their profile and validated/normalised (`+234…`) so WhatsApp links work.
+- Changing phone/name/photo also updates the contact details on the user's existing listings and hostels.
+- Security: saved-account switching no longer bypasses the password when Supabase is on; `/api/admin/users` call now sends the admin token.
+
+---
+## Services are now server-backed
+Run `supabase/services_migration.sql` in the Supabase SQL editor (after `production_fixes.sql`).
+- **Service listings** are stored in Supabase → visible to every user on every device.
+- **Requests → quote → pay → deliver → approve** run through `/api/services/request` (server state machine, 12 unit tests). The client pays the provider's quote with **Paystack** (same webhook URL as orders); funds are held until the client approves; disputes freeze the escrow; admins can refund/release. Stale/declined payments are auto-refunded.
+- **Bookings** are stored in Supabase; the database itself blocks double-booking a time slot.
+- New UI: providers can **Send Quote / Decline**; both sides can **Report a problem**.
+- Fixed: the old flow charged a local "wallet" (impossible once wallet top-ups were disabled), and the bookings tab crashed on `totalAmount`.
+- Payouts to providers are manual for now (`payout_status = 'pending'` on `service_requests`).

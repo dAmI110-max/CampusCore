@@ -1,3 +1,5 @@
+import { MarketService } from '../../services/marketService';
+import { ContactNumberCard } from '../profile/ContactNumberCard';
 import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { StorageService } from '../../services/storageService';
@@ -32,7 +34,7 @@ export const CreateServiceModal: React.FC<CreateServiceModalProps> = ({
   onClose,
   onSuccess,
 }) => {
-  const { currentUser } = useAuth();
+  const { currentUser, contactPhone, contactWhatsapp, hasContactNumber } = useAuth();
   const { success, error: toastError } = useToast();
 
   const categories = StorageService.getServiceCategories();
@@ -66,8 +68,9 @@ export const CreateServiceModal: React.FC<CreateServiceModalProps> = ({
     setPortfolioUrls(portfolioUrls.filter((_, i) => i !== index));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitting) return;
     if (!title.trim()) {
       toastError('Please enter a service title.');
       return;
@@ -81,6 +84,11 @@ export const CreateServiceModal: React.FC<CreateServiceModalProps> = ({
       return;
     }
 
+    if (!hasContactNumber) {
+      toastError('Add your phone number above so clients can reach you.');
+      return;
+    }
+
     setSubmitting(true);
 
     try {
@@ -91,15 +99,15 @@ export const CreateServiceModal: React.FC<CreateServiceModalProps> = ({
         .map((t) => t.trim())
         .filter((t) => t.length > 0);
 
-      StorageService.createService({
+      const payload = {
         providerId: currentUser.id,
         providerName: currentUser.fullName,
         providerAvatar: currentUser.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80',
         providerCampus: campus?.name || currentUser.campusName || 'Main Campus',
         providerUniversity: currentUser.universityName || 'Osun State University',
         providerVerification: currentUser.verificationBadge || 'unverified',
-        providerPhone: currentUser.phone,
-        providerWhatsapp: currentUser.phone,
+        providerPhone: contactPhone,
+        providerWhatsapp: contactWhatsapp,
         categoryId,
         categoryName: cat?.name || 'General Service',
         campusId,
@@ -118,7 +126,20 @@ export const CreateServiceModal: React.FC<CreateServiceModalProps> = ({
         ],
         status: 'active',
         featured: false,
-      });
+      };
+
+      if (MarketService.enabled) {
+        // Only "published" once the SERVER has stored it, so every device sees it.
+        const res = await MarketService.createService(payload as any);
+        if (!res.success || !res.data) {
+          toastError(res.message || 'Failed to publish your service. Please try again.');
+          return;
+        }
+        StorageService.upsertServiceFromServer(res.data);
+        MarketService.syncAll();
+      } else {
+        StorageService.createService(payload as any);
+      }
 
       success('Service published to the Campus Marketplace!');
       onSuccess();
@@ -344,6 +365,8 @@ export const CreateServiceModal: React.FC<CreateServiceModalProps> = ({
               </div>
             )}
           </div>
+
+          <ContactNumberCard audience="Clients" />
 
           <div className="pt-4 border-t border-slate-100 flex items-center justify-end gap-3">
             <button

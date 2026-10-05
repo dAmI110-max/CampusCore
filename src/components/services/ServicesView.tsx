@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { StorageService } from '../../services/storageService';
+import { MarketService } from '../../services/marketService';
 import { useToast } from '../../context/ToastContext';
 import {
   ServiceListing,
@@ -78,6 +79,15 @@ export const ServicesView: React.FC<ServicesViewProps> = ({
   // Quote review modal
   const [quoteReviewRequest, setQuoteReviewRequest] = useState<ServiceRequest | null>(null);
 
+  // Provider: send a quote / anyone: report a problem
+  const [quoteFormRequest, setQuoteFormRequest] = useState<ServiceRequest | null>(null);
+  const [qAmount, setQAmount] = useState('');
+  const [qDays, setQDays] = useState('3');
+  const [qTerms, setQTerms] = useState('');
+  const [disputeRequest, setDisputeRequest] = useState<ServiceRequest | null>(null);
+  const [disputeReason, setDisputeReason] = useState('');
+  const [busy, setBusy] = useState(false);
+
   // Data states
   const [categories, setCategories] = useState<ServiceCategory[]>([]);
   const [campuses, setCampuses] = useState<any[]>([]);
@@ -110,7 +120,20 @@ export const ServicesView: React.FC<ServicesViewProps> = ({
     return () => window.removeEventListener('campuscore_storage_update', handleUpdate);
   }, [selectedCategory, selectedCampus, selectedPricingModel, selectedDeliveryMethod, searchQuery, currentUser?.id]);
 
-  const handleAcceptQuote = (req: ServiceRequest) => {
+  const handleAcceptQuote = async (req: ServiceRequest) => {
+    if (busy) return;
+    if (MarketService.enabled) {
+      setBusy(true);
+      const res = await MarketService.startServiceCheckout(req.id);
+      if (res.success && res.data?.url) {
+        success('Taking you to Paystack to fund the escrow…');
+        window.location.assign(res.data.url); // full-page redirect works on iOS, Android and desktop
+        return;
+      }
+      setBusy(false);
+      toastError(res.message || 'Could not start payment. Please try again.');
+      return;
+    }
     const res = StorageService.acceptServiceQuote(req.id);
     if (!res.success) {
       toastError(res.error || 'Failed to accept quote.');
@@ -118,6 +141,55 @@ export const ServicesView: React.FC<ServicesViewProps> = ({
     }
     success('Quote accepted! Escrow funds locked safely. Provider will begin work.');
     setQuoteReviewRequest(null);
+    loadData();
+  };
+
+  const openQuoteForm = (req: ServiceRequest) => {
+    setQuoteFormRequest(req);
+    setQAmount(String(req.quoteAmount || req.budget || ''));
+    setQDays(String(req.quoteDeliveryDays || 3));
+    setQTerms(req.quoteTerms || '');
+  };
+
+  const handleSendQuote = async () => {
+    if (!quoteFormRequest || busy) return;
+    const amount = Number(qAmount);
+    if (!Number.isFinite(amount) || amount < 100) return toastError('Enter a quote of at least ₦100.');
+    setBusy(true);
+    const res = MarketService.enabled
+      ? await MarketService.serviceRequestAction(quoteFormRequest.id, 'quote', { quoteAmount: amount, quoteDeliveryDays: Number(qDays), quoteTerms: qTerms })
+      : { success: !!StorageService.sendServiceQuote(quoteFormRequest.id, { quoteAmount: amount, quoteDeliveryDays: Number(qDays) || 3, quoteTerms: qTerms }), message: 'Failed to send quote.' };
+    setBusy(false);
+    if (!res.success) return toastError(res.message || 'Failed to send quote.');
+    success('Quote sent! The client can now fund the escrow.');
+    setQuoteFormRequest(null);
+    loadData();
+  };
+
+  const handleDecline = async (req: ServiceRequest) => {
+    if (busy || !window.confirm('Decline this request? This cannot be undone.')) return;
+    setBusy(true);
+    const res = MarketService.enabled
+      ? await MarketService.serviceRequestAction(req.id, 'decline')
+      : { success: false, message: 'Declining is only available online.' };
+    setBusy(false);
+    if (!res.success) return toastError(res.message || 'Could not decline.');
+    success('Request declined.');
+    loadData();
+  };
+
+  const handleDispute = async () => {
+    if (!disputeRequest || busy) return;
+    if (disputeReason.trim().length < 10) return toastError('Please explain the problem (at least 10 characters).');
+    setBusy(true);
+    const res = MarketService.enabled
+      ? await MarketService.serviceRequestAction(disputeRequest.id, 'dispute', { reason: disputeReason })
+      : { success: false, message: 'Disputes are only available online.' };
+    setBusy(false);
+    if (!res.success) return toastError(res.message || 'Could not open dispute.');
+    success('Dispute opened. The funds are frozen while CampusCore reviews.');
+    setDisputeRequest(null);
+    setDisputeReason('');
     loadData();
   };
 
@@ -198,7 +270,7 @@ export const ServicesView: React.FC<ServicesViewProps> = ({
                 }`}
               >
                 <Package className="w-3.5 h-3.5" /> My Service Requests & Quotes
-                {serviceRequests.filter((r) => r.status === 'quoted' || r.status === 'ready_for_review').length > 0 && (
+                {serviceRequests.filter((r) => (r.clientId === currentUser?.id && (r.status === 'quoted' || r.status === 'ready_for_review')) || (r.providerId === currentUser?.id && (r.status === 'requested' || r.status === 'in_progress'))).length > 0 && (
                   <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
                 )}
               </button>
@@ -382,12 +454,14 @@ export const ServicesView: React.FC<ServicesViewProps> = ({
                                 ? 'bg-blue-100 text-blue-800'
                                 : req.status === 'ready_for_review'
                                 ? 'bg-purple-100 text-purple-800'
-                                : req.status === 'quoted'
+                                : req.status === 'quoted' || req.status === 'requested'
                                 ? 'bg-amber-100 text-amber-800'
+                                : req.status === 'disputed' || req.status === 'declined' || req.status === 'refunded'
+                                ? 'bg-rose-100 text-rose-800'
                                 : 'bg-slate-100 text-slate-800'
                             }`}
                           >
-                            {req.status.replace('_', ' ')}
+                            {req.status.replace(/_/g, ' ')}
                           </span>
                         </div>
                         <h3 className="font-bold text-slate-900 text-base mt-1">
@@ -424,6 +498,32 @@ export const ServicesView: React.FC<ServicesViewProps> = ({
                             className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-sm"
                           >
                             Review & Fund Escrow (₦{req.quoteAmount?.toLocaleString()})
+                          </button>
+                        )}
+
+                        {/* Provider: reply to a new request with a quote, or decline */}
+                        {(req.status === 'requested' || req.status === 'quoted') && isProvider && (
+                          <button
+                            onClick={() => openQuoteForm(req)}
+                            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-sm"
+                          >
+                            {req.status === 'requested' ? 'Send Quote' : 'Update Quote'}
+                          </button>
+                        )}
+                        {(req.status === 'requested' || req.status === 'quoted') && (
+                          <button
+                            onClick={() => handleDecline(req)}
+                            className="px-3.5 py-2 bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-xl text-xs font-semibold"
+                          >
+                            Decline
+                          </button>
+                        )}
+                        {(req.status === 'in_progress' || req.status === 'ready_for_review') && (
+                          <button
+                            onClick={() => { setDisputeRequest(req); setDisputeReason(''); }}
+                            className="px-3.5 py-2 bg-white border border-rose-200 text-rose-600 hover:bg-rose-50 rounded-xl text-xs font-semibold"
+                          >
+                            Report a problem
                           </button>
                         )}
 
@@ -603,6 +703,49 @@ export const ServicesView: React.FC<ServicesViewProps> = ({
         />
       )}
 
+      {/* Provider: Send Quote modal */}
+      {quoteFormRequest && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-slate-950/70 backdrop-blur-sm p-0 sm:p-4" onMouseDown={(e) => e.target === e.currentTarget && !busy && setQuoteFormRequest(null)}>
+          <div className="bg-white w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl shadow-2xl p-6 space-y-4 max-h-[92vh] overflow-y-auto">
+            <div>
+              <h3 className="font-black text-slate-900 text-base">Send a quote</h3>
+              <p className="text-xs text-slate-500 mt-0.5">{quoteFormRequest.serviceTitle} · client budget ₦{quoteFormRequest.budget.toLocaleString()}</p>
+            </div>
+            <p className="text-xs text-slate-600 bg-slate-50 rounded-xl p-3 whitespace-pre-line">{quoteFormRequest.description}</p>
+            <label className="block text-xs font-bold text-slate-700">Your price (₦)
+              <input value={qAmount} onChange={(e) => setQAmount(e.target.value)} type="number" inputMode="numeric" min={100} className="mt-1 w-full px-3 py-2.5 rounded-xl border border-slate-200 text-base sm:text-sm font-semibold" />
+            </label>
+            <label className="block text-xs font-bold text-slate-700">Delivery time (days)
+              <input value={qDays} onChange={(e) => setQDays(e.target.value)} type="number" inputMode="numeric" min={1} max={90} className="mt-1 w-full px-3 py-2.5 rounded-xl border border-slate-200 text-base sm:text-sm" />
+            </label>
+            <label className="block text-xs font-bold text-slate-700">What's included / terms (optional)
+              <textarea value={qTerms} onChange={(e) => setQTerms(e.target.value)} rows={3} maxLength={1000} className="mt-1 w-full px-3 py-2.5 rounded-xl border border-slate-200 text-base sm:text-sm resize-none" />
+            </label>
+            <div className="flex justify-end gap-3 pt-1">
+              <button onClick={() => setQuoteFormRequest(null)} disabled={busy} className="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-semibold text-xs">Cancel</button>
+              <button onClick={handleSendQuote} disabled={busy} className="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs disabled:opacity-60">{busy ? 'Sending…' : 'Send Quote'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Report a problem modal */}
+      {disputeRequest && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-slate-950/70 backdrop-blur-sm p-0 sm:p-4" onMouseDown={(e) => e.target === e.currentTarget && !busy && setDisputeRequest(null)}>
+          <div className="bg-white w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl shadow-2xl p-6 space-y-4">
+            <div>
+              <h3 className="font-black text-slate-900 text-base">Report a problem</h3>
+              <p className="text-xs text-slate-500 mt-0.5">{disputeRequest.requestNumber} · The escrow is frozen until CampusCore reviews.</p>
+            </div>
+            <textarea value={disputeReason} onChange={(e) => setDisputeReason(e.target.value)} rows={4} maxLength={500} placeholder="Explain what went wrong…" className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-base sm:text-sm resize-none" />
+            <div className="flex justify-end gap-3">
+              <button onClick={() => setDisputeRequest(null)} disabled={busy} className="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-semibold text-xs">Cancel</button>
+              <button onClick={handleDispute} disabled={busy} className="px-6 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs disabled:opacity-60">{busy ? 'Submitting…' : 'Open dispute'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Quote Review Modal */}
       {quoteReviewRequest && (
         <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
@@ -659,7 +802,7 @@ export const ServicesView: React.FC<ServicesViewProps> = ({
                 <ShieldCheck className="w-5 h-5 text-amber-700 flex-shrink-0 mt-0.5" />
                 <div>
                   <span className="font-bold block">Escrow Protected Payment</span>
-                  ₦{quoteReviewRequest.quoteAmount?.toLocaleString()} will be temporarily debited from your wallet and held securely in Escrow. The provider will only receive it after you inspect and approve the completed deliverables.
+                  ₦{quoteReviewRequest.quoteAmount?.toLocaleString()} is paid securely with Paystack and held in Escrow. The provider only receives it after you inspect and approve the completed work.
                 </div>
               </div>
 
@@ -673,10 +816,11 @@ export const ServicesView: React.FC<ServicesViewProps> = ({
                 </button>
                 <button
                   type="button"
+                  disabled={busy}
                   onClick={() => handleAcceptQuote(quoteReviewRequest)}
                   className="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-md"
                 >
-                  Accept Quote & Fund Escrow
+                  {busy ? 'Opening Paystack…' : 'Accept Quote & Pay with Paystack'}
                 </button>
               </div>
             </div>

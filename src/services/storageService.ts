@@ -1090,6 +1090,27 @@ export class StorageService {
     setItem(STORAGE_KEYS.ACCOMMODATIONS, [item, ...current]);
   }
 
+  static replaceServicesFromServer(items: ServiceListing[]): void {
+    setItem(STORAGE_KEYS.SERVICES, items);
+  }
+
+  static upsertServiceFromServer(item: ServiceListing): void {
+    const current = getItem<ServiceListing[]>(STORAGE_KEYS.SERVICES, INITIAL_SERVICES).filter((x) => x.id !== item.id);
+    setItem(STORAGE_KEYS.SERVICES, [item, ...current]);
+  }
+
+  static removeServiceFromCache(id: string): void {
+    setItem(STORAGE_KEYS.SERVICES, getItem<ServiceListing[]>(STORAGE_KEYS.SERVICES, INITIAL_SERVICES).filter((x) => x.id !== id));
+  }
+
+  static replaceServiceRequestsFromServer(items: ServiceRequest[]): void {
+    setItem(STORAGE_KEYS.SERVICE_REQUESTS, items);
+  }
+
+  static replaceBookingsFromServer(items: Booking[]): void {
+    setItem(STORAGE_KEYS.BOOKINGS, items);
+  }
+
   static replaceOrdersFromServer(orders: Order[]): void {
     setItem(STORAGE_KEYS.ORDERS, orders.filter((o) => o.status !== 'payment_pending'));
     const escrows: EscrowTransaction[] = orders

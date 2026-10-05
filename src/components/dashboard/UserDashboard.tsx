@@ -15,8 +15,12 @@ import {
   Plus,
   Home,
   ShieldCheck,
+  Pencil,
+  AlertCircle,
 } from 'lucide-react';
 import { motion } from 'motion/react';
+import { useProfileEditor } from '../../context/ProfileEditorContext';
+import { formatPhoneDisplay } from '../../lib/phone';
 
 interface UserDashboardProps {
   onOpenCreateProduct: () => void;
@@ -51,7 +55,8 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
   onExploreMarketplace,
   onNavigateToOrders,
 }) => {
-  const { currentUser } = useAuth();
+  const { currentUser, hasContactNumber } = useAuth();
+  const { openEditProfile } = useProfileEditor();
   const [currentTab, setCurrentTab] = useState<DashboardTab>(getStoredUserTab);
   const [, setTick] = useState(0);
 
@@ -111,6 +116,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
                 <span>@{currentUser.username}</span>
                 <span>•</span>
                 <span>{currentUser.email}</span>
+                {currentUser.phone && (<><span>•</span><span>{formatPhoneDisplay(currentUser.phone)}</span></>)}
               </div>
             </div>
           </div>
@@ -130,8 +136,25 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
               <Home className="w-4 h-4 text-emerald-400" />
               Post Hostel
             </button>
+            <button
+              onClick={openEditProfile}
+              className="px-4 py-2.5 bg-white/10 hover:bg-white/20 text-white font-bold text-xs rounded-xl backdrop-blur-xs transition-colors flex items-center gap-1.5"
+            >
+              <Pencil className="w-4 h-4 text-emerald-400" />
+              Edit Profile
+            </button>
           </div>
         </div>
+
+        {!hasContactNumber && (
+          <button
+            onClick={openEditProfile}
+            className="relative z-10 mt-5 w-full flex items-center gap-2 text-left text-xs font-semibold bg-amber-400/15 border border-amber-300/30 text-amber-200 rounded-xl px-3 py-2.5 active:scale-[0.99] transition-transform"
+          >
+            <AlertCircle className="w-4 h-4 shrink-0" />
+            <span>Add your phone number so buyers and students can contact you. <u>Add now</u></span>
+          </button>
+        )}
 
         {/* Stats Grid */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6 pt-6 border-t border-white/10">

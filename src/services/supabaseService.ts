@@ -209,20 +209,14 @@ export class SupabaseService {
   }): Promise<UserProfile | null> {
     const supabase = getSupabase();
 
-    const existing = await this.fetchProfile(user.id);
+    const { status, profile: existing } = await this.fetchProfileResult(user.id);
     if (existing) return existing;
+    // A failed read does NOT mean "no profile". Never create/overwrite on an error – that wiped saved phone numbers.
+    if (status === 'error') return StorageService.getUserById(user.id) || null;
 
     const meta = user.user_metadata || {};
     const email = user.email || meta.email || '';
     const isSuper = this.isSuperAdminEmail(email);
-
-    // Check if user already exists in StorageService
-    const existingLocal = StorageService.getUserById(user.id) ||
-      (email ? StorageService.getUserByEmail(email) : null);
-
-    if (existingLocal) {
-      return existingLocal;
-    }
 
     const newProfileData = {
       id: user.id,
@@ -253,7 +247,7 @@ export class SupabaseService {
     };
 
     try {
-      await supabase.from('profiles').upsert(newProfileData, { onConflict: 'id' });
+      await supabase.from('profiles').upsert(newProfileData, { onConflict: 'id', ignoreDuplicates: true });
     } catch (err) {
       console.warn('ensureProfile upsert notice:', err);
     }
@@ -275,6 +269,9 @@ export class SupabaseService {
       }
     }
 
+    // Prefer what the database actually holds (a signup trigger may have filled in extra fields).
+    const created = await this.fetchProfileResult(user.id);
+    if (created.profile) return created.profile;
     const mapped = this.mapDbProfileToUserProfile(newProfileData);
     StorageService.updateUser(mapped.id, mapped);
     return mapped;
@@ -454,27 +451,37 @@ export class SupabaseService {
   // PROFILES
   // ==========================================
 
-  static async fetchProfile(userId: string): Promise<UserProfile | null> {
+  /**
+   * Reads the profile row and tells the caller WHY it got nothing:
+   *  - 'found'   → authoritative row from the database
+   *  - 'missing' → the read worked and there is genuinely no row
+   *  - 'error'   → network/permission problem (the row may well exist!)
+   */
+  static async fetchProfileResult(
+    userId: string
+  ): Promise<{ status: 'found' | 'missing' | 'error'; profile: UserProfile | null }> {
     const supabase = getSupabase();
-    if (supabase && isSupabaseConfigured()) {
-      try {
-        const { data, error } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', userId)
-          .maybeSingle();
-
-        if (!error && data) {
-          const profile = this.mapDbProfileToUserProfile(data);
-          StorageService.updateUser(profile.id, profile);
-          return profile;
-        }
-      } catch (err) {
-        console.warn('fetchProfile supabase notice:', err);
+    if (!supabase || !isSupabaseConfigured()) return { status: 'error', profile: null };
+    try {
+      const { data, error } = await supabase.from('profiles').select('*').eq('id', userId).maybeSingle();
+      if (error) {
+        console.warn('fetchProfile notice:', error.message);
+        return { status: 'error', profile: null };
       }
+      if (!data) return { status: 'missing', profile: null };
+      const profile = this.mapDbProfileToUserProfile(data);
+      StorageService.updateUser(profile.id, profile);
+      return { status: 'found', profile };
+    } catch (err) {
+      console.warn('fetchProfile supabase notice:', err);
+      return { status: 'error', profile: null };
     }
+  }
 
-    // Fallback to StorageService (handles seeded super admins, demo students & offline cache)
+  static async fetchProfile(userId: string): Promise<UserProfile | null> {
+    const res = await this.fetchProfileResult(userId);
+    if (res.profile) return res.profile;
+    // Offline / error fallback only – callers must not treat this as server truth.
     return StorageService.getUserById(userId) || null;
   }
 
@@ -486,7 +493,9 @@ export class SupabaseService {
   }> {
     // 1. Try server-side admin API first (which has access to auth.admin if service role key is present)
     try {
-      const res = await fetch('/api/admin/users');
+      const { data: adminSess } = (await getSupabase()?.auth.getSession()) || { data: null as any };
+      const adminToken = adminSess?.session?.access_token;
+      const res = await fetch('/api/admin/users', { headers: adminToken ? { Authorization: `Bearer ${adminToken}` } : {} });
       if (res.ok) {
         const json = await res.json();
         if (json.success && Array.isArray(json.data)) {
@@ -602,8 +611,10 @@ export class SupabaseService {
         return { success: false, message: error.message };
       }
 
-      const updated = data ? this.mapDbProfileToUserProfile(data) : null;
-      return { success: true, user: updated || undefined };
+      if (!data) {
+        return { success: false, message: 'Your profile could not be saved. Please sign in again and retry.' };
+      }
+      return { success: true, user: this.mapDbProfileToUserProfile(data) };
     } catch (err: any) {
       return { success: false, message: err.message || 'Failed to update profile' };
     }

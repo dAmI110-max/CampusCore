@@ -11,6 +11,7 @@ import healthHandler from "./api/health";
 import adminUsersHandler from "./api/admin/users";
 import paystackWebhookHandler from "./api/payment/paystack/webhook";
 import orderActionHandler from "./api/orders/action";
+import serviceRequestHandler from "./api/services/request";
 
 dotenv.config();
 
@@ -42,6 +43,7 @@ async function startServer() {
   app.get("/api/health", healthHandler);
   app.all("/api/admin/users", adminUsersHandler);
   app.post("/api/orders/action", orderActionHandler);
+  app.post("/api/services/request", serviceRequestHandler);
 
   // Vite middleware for dev or static serving for production
   if (process.env.NODE_ENV !== "production") {

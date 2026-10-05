@@ -1,6 +1,6 @@
 import { verifyUser } from '../../_lib/verifyUser';
 import { getAdminClient } from '../../_lib/supabaseAdmin';
-import { computeAmounts, generateOrderNumber, sanitizeDelivery } from '../../_lib/orderLogic';
+import { computeAmounts, generateOrderNumber, generateReference, sanitizeDelivery } from '../../_lib/orderLogic';
 import { rateLimit, getAppUrl } from '../../_lib/http';
 
 /**
@@ -19,6 +19,7 @@ export default async function handler(req: any, res: any) {
   if (!secretKey || !db) return res.status(503).json({ error: 'Payments are not configured on this server yet.' });
 
   try {
+    if (req.body?.kind === 'service_request') return await initializeService(req, res, user, db, secretKey);
     const { listingId, delivery } = req.body || {};
     if (typeof listingId !== 'string' || !/^[0-9a-f-]{36}$/i.test(listingId)) {
       return res.status(400).json({ error: 'This item is out of date. Please refresh the page and try again.' });
@@ -83,4 +84,41 @@ export default async function handler(req: any, res: any) {
     console.error('Paystack initialize error:', err);
     return res.status(500).json({ error: 'Unable to start payment. Please try again.' });
   }
+}
+
+
+/** Client funds the escrow for a quoted service job. Amount = the provider's quote, read from the database. */
+async function initializeService(req: any, res: any, user: any, db: any, secretKey: string) {
+  const requestId = req.body?.requestId;
+  if (typeof requestId !== 'string' || !/^[0-9a-f-]{36}$/i.test(requestId)) return res.status(400).json({ error: 'Invalid request.' });
+
+  const { data: job } = await db.from('service_requests').select('*').eq('id', requestId).maybeSingle();
+  if (!job || job.client_id !== user.id) return res.status(404).json({ error: 'Request not found.' });
+  if (job.status !== 'quoted' || !job.quote_amount) return res.status(409).json({ error: 'This request has no open quote to pay.' });
+
+  const { data: provider } = await db.from('profiles').select('account_status').eq('id', job.provider_id).maybeSingle();
+  if (!provider || provider.account_status !== 'active') return res.status(409).json({ error: 'This provider is currently unavailable.' });
+
+  let amounts;
+  try { amounts = computeAmounts(Number(job.quote_amount), Number(process.env.PLATFORM_FEE_PERCENT ?? 2)); }
+  catch (e: any) { return res.status(400).json({ error: e.message }); }
+
+  const reference = generateReference('SRV'); // a fresh reference per attempt; only the latest one can fund the job
+  const { data: claimed } = await db.from('service_requests').update({
+    payment_reference: reference, platform_fee: amounts.platformFee, provider_receives: amounts.sellerReceives, updated_at: new Date().toISOString(),
+  }).eq('id', job.id).eq('status', 'quoted').select('id');
+  if (!claimed || claimed.length === 0) return res.status(409).json({ error: 'This request was just updated. Please refresh.' });
+
+  const psRes = await fetch('https://api.paystack.co/transaction/initialize', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${secretKey}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      email: user.email, amount: amounts.totalKobo, currency: 'NGN', reference,
+      callback_url: `${getAppUrl(req)}/?view=services`,
+      metadata: { service_request_id: job.id, client_id: user.id },
+    }),
+  });
+  const ps = await psRes.json().catch(() => ({}));
+  if (!psRes.ok || !ps.status) return res.status(502).json({ error: 'Paystack could not start the payment. Please try again.' });
+  return res.status(200).json({ success: true, authorization_url: ps.data.authorization_url, reference, requestId: job.id });
 }

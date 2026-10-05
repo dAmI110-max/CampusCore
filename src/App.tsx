@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { ThemeProvider } from './context/ThemeContext';
 import { ToastProvider, useToast } from './context/ToastContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { ProfileEditorProvider } from './context/ProfileEditorContext';
 import { ModalProvider, useModal } from './context/ModalContext';
 import { StorageService } from './services/storageService';
 import { MarketService } from './services/marketService';
@@ -197,8 +198,8 @@ const MainApp: React.FC = () => {
     (async () => {
       const res = await MarketService.verifyPayment(ref);
       await MarketService.syncAll();
-      setCurrentView('orders');
-      if (res.success && res.data?.verified) success('Payment confirmed! Your money is safely held in escrow until you confirm delivery.');
+      setCurrentView(res.data?.kind === 'service' ? 'services' : 'orders');
+      if (res.success && res.data?.verified) success(res.data?.kind === 'service' ? 'Payment confirmed! The provider can now start work. Funds stay in escrow until you approve the delivery.' : 'Payment confirmed! Your money is safely held in escrow until you confirm delivery.');
       else if (res.success) showError('Payment was not completed. You have not been charged.');
       else showError(res.message || 'We could not confirm your payment yet. If you were charged, your order will appear shortly.');
     })();
@@ -959,9 +960,11 @@ export default function App() {
       <ThemeProvider>
         <ToastProvider>
           <AuthProvider>
-            <ModalProvider>
-              <MainApp />
-            </ModalProvider>
+            <ProfileEditorProvider>
+              <ModalProvider>
+                <MainApp />
+              </ModalProvider>
+            </ProfileEditorProvider>
           </AuthProvider>
         </ToastProvider>
       </ThemeProvider>

@@ -3,6 +3,8 @@ import { UserProfile, AcademicLevel, UserRole, SellerStatus, AdminPermissions } 
 import { StorageService } from '../services/storageService';
 import { SupabaseService, SUPER_ADMIN_EMAIL, SECONDARY_ADMIN_EMAIL } from '../services/supabaseService';
 import { getSupabase, isSupabaseConfigured } from '../lib/supabase';
+import { MarketService } from '../services/marketService';
+import { normalizePhone, phoneDigits } from '../lib/phone';
 
 interface SignupData {
   fullName: string;
@@ -50,6 +52,15 @@ interface AuthContextType {
   switchDemoUser: (userId: string) => void;
   demoUsers: UserProfile[];
   refreshUser: () => void;
+  /** Re-reads the signed-in user's profile from the database and updates global state. */
+  refreshProfile: () => Promise<UserProfile | null>;
+  isProfileLoading: boolean;
+  /** Best phone number to show buyers (profile phone, else WhatsApp). Always current. */
+  contactPhone: string;
+  /** WhatsApp number (digits only, e.g. 2348031234567) for wa.me links. */
+  contactWhatsapp: string;
+  /** True when the user has a valid number on file – required before posting listings. */
+  hasContactNumber: boolean;
   isSupabaseConnected: boolean;
   isPasswordRecovery: boolean;
   clearPasswordRecovery: () => void;
@@ -60,6 +71,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isProfileLoading, setIsProfileLoading] = useState(false);
   const [demoUsers, setDemoUsers] = useState<UserProfile[]>([]);
   const [savedAccounts, setSavedAccounts] = useState<UserProfile[]>([]);
   const [isPasswordRecovery, setIsPasswordRecovery] = useState<boolean>(() => {
@@ -71,36 +83,58 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   });
   const isSupabaseConnected = isSupabaseConfigured();
 
+  /** Puts a profile into global state + the local mirror. */
+  const applyProfile = useCallback((profile: UserProfile, remember = false) => {
+    setCurrentUser(profile);
+    StorageService.updateUser(profile.id, profile);
+    StorageService.setCurrentUser(profile.id);
+    if (remember) {
+      StorageService.addSavedAccount(profile);
+      setSavedAccounts(StorageService.getSavedAccounts());
+    }
+  }, []);
+
+  /**
+   * THE one place that pulls a signed-in user's profile (name, phone, WhatsApp, avatar, seller status…)
+   * from the database into global state. Used on page load, login, token events and refocus.
+   * Returns { banned: true } if the account is blocked, { profile: null } if the read failed.
+   */
+  const loadSessionProfile = useCallback(
+    async (sessionUser: any, remember = false): Promise<{ profile: UserProfile | null; banned: boolean }> => {
+      const client = getSupabase();
+      let profile = await SupabaseService.fetchProfile(sessionUser.id);
+      if (!profile) profile = await SupabaseService.ensureProfile(sessionUser);
+      if (!profile) return { profile: null, banned: false };
+      if (profile.accountStatus === 'banned' || profile.accountStatus === 'suspended') {
+        await client?.auth.signOut();
+        setCurrentUser(null);
+        StorageService.setCurrentUser(null);
+        return { profile: null, banned: true };
+      }
+      applyProfile(profile, remember);
+      return { profile, banned: false };
+    },
+    [applyProfile]
+  );
+
   const refreshUser = useCallback(async () => {
     const client = getSupabase();
     if (client && isSupabaseConfigured()) {
       try {
         const { data: sessionData } = await client.auth.getSession();
         if (sessionData?.session?.user) {
-          let profile = await SupabaseService.fetchProfile(sessionData.session.user.id);
-          if (!profile) {
-            profile = await SupabaseService.ensureProfile(sessionData.session.user);
-          }
-          if (profile) {
-            if (profile.accountStatus === 'banned' || profile.accountStatus === 'suspended') {
-              await client.auth.signOut();
-              setCurrentUser(null);
-              StorageService.setCurrentUser(null);
-              return;
-            }
-            setCurrentUser(profile);
-            StorageService.updateUser(profile.id, profile);
-            StorageService.setCurrentUser(profile.id);
-            return;
-          }
+          // A failed read must not log the user out of the UI – on error we simply keep the current state.
+          await loadSessionProfile(sessionData.session.user);
+          return;
         }
       } catch (err) {
         console.warn('refreshUser Supabase notice:', err);
+        return; // transient error: keep current state
       }
     }
 
-    // Local user fallback (handles demo users, super admins and offline storage)
-    const localUser = isSupabaseConfigured() ? null : StorageService.getCurrentUser(); // SECURITY: never trust a localStorage 'logged-in' flag when Supabase is the auth authority
+    // Local user fallback (offline development only; never used when Supabase is the auth authority)
+    const localUser = isSupabaseConfigured() ? null : StorageService.getCurrentUser();
     if (localUser) {
       if (localUser.accountStatus === 'banned' || localUser.accountStatus === 'suspended') {
         setCurrentUser(null);
@@ -113,7 +147,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     setCurrentUser(null);
     StorageService.setCurrentUser(null);
-  }, []);
+  }, [loadSessionProfile]);
+
+  const refreshProfile = useCallback(async (): Promise<UserProfile | null> => {
+    const client = getSupabase();
+    if (!client || !isSupabaseConfigured()) return StorageService.getCurrentUser();
+    try {
+      const { data } = await client.auth.getSession();
+      if (!data?.session?.user) return null;
+      setIsProfileLoading(true);
+      const { profile } = await loadSessionProfile(data.session.user);
+      return profile;
+    } catch {
+      return null;
+    } finally {
+      setIsProfileLoading(false);
+    }
+  }, [loadSessionProfile]);
 
   // Initialize session & Supabase auth listener
   useEffect(() => {
@@ -135,28 +185,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             console.warn('Session check:', sessionError.message);
           }
           if (sessionData?.session?.user && mounted) {
-            let profile = await SupabaseService.fetchProfile(sessionData.session.user.id);
-            if (!profile) {
-              profile = await SupabaseService.ensureProfile(sessionData.session.user);
-            }
-            if (profile) {
-              if (profile.accountStatus === 'banned' || profile.accountStatus === 'suspended') {
-                await client.auth.signOut();
-                if (mounted) {
-                  setCurrentUser(null);
-                  StorageService.setCurrentUser(null);
-                  setIsLoading(false);
-                }
-                return;
-              }
-              if (mounted) {
-                setCurrentUser(profile);
-                StorageService.updateUser(profile.id, profile);
-                StorageService.setCurrentUser(profile.id);
-                StorageService.addSavedAccount(profile);
-                setSavedAccounts(StorageService.getSavedAccounts());
-              }
-            }
+            setIsProfileLoading(true);
+            await loadSessionProfile(sessionData.session.user, true);
+            if (mounted) setIsProfileLoading(false);
           } else if (mounted) {
             const localUser = isSupabaseConfigured() ? null : StorageService.getCurrentUser(); // SECURITY: never trust a localStorage 'logged-in' flag when Supabase is the auth authority
             if (localUser) {
@@ -201,23 +232,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (!mounted) return;
 
         if (event === 'SIGNED_IN' && session?.user) {
-          let profile = await SupabaseService.fetchProfile(session.user.id);
-          if (!profile) {
-            profile = await SupabaseService.ensureProfile(session.user);
-          }
-          if (profile && mounted) {
-            if (profile.accountStatus === 'banned' || profile.accountStatus === 'suspended') {
-              await client.auth.signOut();
-              setCurrentUser(null);
-              StorageService.setCurrentUser(null);
-              return;
-            }
-            setCurrentUser(profile);
-            StorageService.updateUser(profile.id, profile);
-            StorageService.setCurrentUser(profile.id);
-            StorageService.addSavedAccount(profile);
-            setSavedAccounts(StorageService.getSavedAccounts());
-          }
+          await loadSessionProfile(session.user, true);
         } else if (event === 'PASSWORD_RECOVERY') {
           // Fired when the user lands here via the "reset password" email link.
           // Show the "set a new password" screen instead of silently doing nothing —
@@ -229,17 +244,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             StorageService.setCurrentUser(null);
           }
         } else if (event === 'USER_UPDATED' && session?.user) {
-          const profile = await SupabaseService.fetchProfile(session.user.id);
-          if (profile && mounted) {
-            if (profile.accountStatus === 'banned' || profile.accountStatus === 'suspended') {
-              await client.auth.signOut();
-              setCurrentUser(null);
-              StorageService.setCurrentUser(null);
-              return;
-            }
-            setCurrentUser(profile);
-            StorageService.updateUser(profile.id, profile);
-          }
+          await loadSessionProfile(session.user);
         }
       });
       authSubscription = subscription;
@@ -261,7 +266,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
       window.removeEventListener('campuscore_storage_update', handleStorageUpdate);
     };
-  }, [refreshUser]);
+  }, [refreshUser, loadSessionProfile]);
+
+  // Keep the profile fresh: re-pull from the database when the user returns to the tab (max once / 30s).
+  useEffect(() => {
+    if (!currentUser?.id || !isSupabaseConfigured()) return;
+    let last = Date.now();
+    const onFocus = () => {
+      if (document.visibilityState === 'hidden' || Date.now() - last < 30_000) return;
+      last = Date.now();
+      refreshProfile();
+    };
+    document.addEventListener('visibilitychange', onFocus);
+    window.addEventListener('focus', onFocus);
+    return () => {
+      document.removeEventListener('visibilitychange', onFocus);
+      window.removeEventListener('focus', onFocus);
+    };
+  }, [currentUser?.id, refreshProfile]);
 
   const login = async (email: string, password?: string): Promise<{ success: boolean; message?: string }> => {
     setIsLoading(true);
@@ -286,11 +308,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       };
     }
 
-    setCurrentUser(res.user);
-    StorageService.updateUser(res.user.id, res.user);
-    StorageService.setCurrentUser(res.user.id);
-    StorageService.addSavedAccount(res.user);
-    setSavedAccounts(StorageService.getSavedAccounts());
+    applyProfile(res.user, true);
+    // Pull the full, current profile (phone, WhatsApp, avatar…) straight from the database.
+    refreshProfile();
     return { success: true };
   };
 
@@ -326,6 +346,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const loginWithSavedAccount = async (userId: string): Promise<{ success: boolean; message?: string }> => {
+    if (isSupabaseConfigured()) {
+      const client = getSupabase();
+      const { data } = client ? await client.auth.getSession() : { data: null as any };
+      if (data?.session?.user?.id !== userId) {
+        return { success: false, message: 'For your security, please enter your password to sign in to this account.' };
+      }
+    }
     const user = StorageService.getUserById(userId);
     if (!user) {
       return {
@@ -465,28 +492,45 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const updateProfile = async (updates: Partial<UserProfile>): Promise<{ success: boolean; message?: string }> => {
     if (!currentUser) return { success: false, message: 'You must be logged in to update your profile.' };
 
-    // 1. Supabase update if configured
+    const clean: Partial<UserProfile> = { ...updates };
+    if (clean.fullName !== undefined && clean.fullName.trim().length < 2) {
+      return { success: false, message: 'Please enter your full name.' };
+    }
+    for (const key of ['phone', 'whatsapp'] as const) {
+      const raw = clean[key];
+      if (raw !== undefined && raw.trim() !== '') {
+        const n = normalizePhone(raw);
+        if (!n) return { success: false, message: 'Enter a valid phone number, e.g. 0803 123 4567.' };
+        clean[key] = n;
+      }
+    }
+    if (clean.telegram !== undefined) clean.telegram = clean.telegram.trim().replace(/^@+/, '');
+
+    // 1. Save to the database first. The DB result (not stale local data) becomes the truth.
+    let merged: Partial<UserProfile> = clean;
     if (isSupabaseConfigured()) {
-      const supaRes = await SupabaseService.updateProfile(currentUser.id, updates);
+      const supaRes = await SupabaseService.updateProfile(currentUser.id, clean);
       if (!supaRes.success) {
-        return {
-          success: false,
-          message: supaRes.message || 'Unable to update your profile. Please try again.',
-        };
+        return { success: false, message: supaRes.message || 'Unable to update your profile. Please try again.' };
       }
-      if (supaRes.user) {
-        updates = { ...updates, ...supaRes.user };
-      }
+      if (supaRes.user) merged = { ...clean, ...supaRes.user };
     }
 
-    // 2. Local update
-    const updated = StorageService.updateUser(currentUser.id, updates);
-    if (updated) {
-      setCurrentUser(updated);
-      setDemoUsers(StorageService.getUsers());
-      return { success: true };
+    // 2. Update global state + local mirror
+    const updated = StorageService.updateUser(currentUser.id, merged) || ({ ...currentUser, ...merged } as UserProfile);
+    setCurrentUser(updated);
+    setDemoUsers(StorageService.getUsers());
+
+    // 3. Keep the contact details on this user's existing listings/hostels current (fire-and-forget)
+    if (isSupabaseConfigured() && (clean.phone || clean.whatsapp || clean.avatarUrl || clean.fullName)) {
+      MarketService.syncSellerContact(currentUser.id, {
+        name: updated.fullName,
+        avatar: clean.avatarUrl ? updated.avatarUrl : undefined,
+        phone: clean.phone ? updated.phone : undefined,
+        whatsapp: clean.phone || clean.whatsapp ? phoneDigits(updated.whatsapp || updated.phone) : undefined,
+      });
     }
-    return { success: false, message: 'Failed to update profile.' };
+    return { success: true };
   };
 
   const completeSellerOnboarding = async (data: {
@@ -582,6 +626,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const isAuthenticated = !!currentUser;
 
+  const contactPhone = currentUser?.phone || currentUser?.whatsapp || '';
+  const contactWhatsapp = phoneDigits(currentUser?.whatsapp || currentUser?.phone);
+  const hasContactNumber = normalizePhone(contactPhone) !== null;
+
   return (
     <AuthContext.Provider
       value={{
@@ -607,6 +655,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         switchDemoUser,
         demoUsers,
         refreshUser,
+        refreshProfile,
+        isProfileLoading,
+        contactPhone,
+        contactWhatsapp,
+        hasContactNumber,
         isSupabaseConnected,
         isPasswordRecovery,
         clearPasswordRecovery: () => setIsPasswordRecovery(false),

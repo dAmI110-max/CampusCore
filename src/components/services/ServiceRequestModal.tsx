@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { MarketService } from '../../services/marketService';
 import { StorageService } from '../../services/storageService';
 import { useToast } from '../../context/ToastContext';
 import { ServiceListing } from '../../types';
@@ -39,8 +40,9 @@ export const ServiceRequestModal: React.FC<ServiceRequestModalProps> = ({
 
   if (!isOpen || !service || !currentUser) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitting) return;
     if (!description.trim() || description.length < 15) {
       toastError('Please describe your project requirements (at least 15 characters).');
       return;
@@ -52,6 +54,22 @@ export const ServiceRequestModal: React.FC<ServiceRequestModalProps> = ({
 
     setSubmitting(true);
     try {
+      if (MarketService.enabled) {
+        const res = await MarketService.createServiceRequest({
+          serviceId: service.id,
+          description: description.trim(),
+          budget: Number(budget),
+          deadlineDate: deadline,
+        });
+        if (!res.success) {
+          toastError(res.message || 'Failed to submit request.');
+          return;
+        }
+        success('Request sent! The provider will review it and send you a quote.');
+        onSuccess();
+        onClose();
+        return;
+      }
       StorageService.createServiceRequest({
         serviceId: service.id,
         serviceTitle: service.title,

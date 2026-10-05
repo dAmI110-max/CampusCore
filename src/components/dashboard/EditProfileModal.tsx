@@ -1,298 +1,214 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
-import { uploadImageToSupabase } from '../../lib/supabase';
-import { UserProfile } from '../../types';
-import { X, Camera, Mail, Phone, MessageCircle, User, MapPin, Briefcase, Save } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
+import { uploadImageToSupabase, isSupabaseConfigured } from '../../lib/supabase';
+import { compressImage } from '../../lib/imageUtils';
+import { normalizePhone, formatPhoneDisplay } from '../../lib/phone';
+import { X, Camera, Phone, MessageCircle, User, Save, Loader2, Send } from 'lucide-react';
 
 interface EditProfileModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
-export const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onClose }) => {
-  const { currentUser, updateProfile } = useAuth();
-  const { success, error } = useToast();
-  const fileInputRef = useRef<HTMLInputElement>(null);
+const inputCls =
+  'w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/40 focus:border-purple-500 disabled:opacity-60';
 
-  const [fullName, setFullName] = useState(currentUser?.fullName || '');
-  const [phone, setPhone] = useState(currentUser?.phone || '');
-  const [whatsapp, setWhatsapp] = useState(currentUser?.whatsapp || '');
-  const [telegram, setTelegram] = useState(currentUser?.telegram || '');
-  const [bio, setBio] = useState(currentUser?.bio || '');
-  const [avatarUrl, setAvatarUrl] = useState(currentUser?.avatarUrl || '');
-  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+export const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onClose }) => {
+  const { currentUser, updateProfile, isSeller } = useAuth();
+  const { success, error } = useToast();
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const [fullName, setFullName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [whatsapp, setWhatsapp] = useState('');
+  const [sameAsPhone, setSameAsPhone] = useState(true);
+  const [telegram, setTelegram] = useState('');
+  const [bio, setBio] = useState('');
+  const [showPhonePublicly, setShowPhonePublicly] = useState(true);
+  const [avatarUrl, setAvatarUrl] = useState('');
+  const [uploading, setUploading] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  // Always start from the latest profile each time the editor opens.
+  useEffect(() => {
+    if (!isOpen || !currentUser) return;
+    setFullName(currentUser.fullName || '');
+    setPhone(currentUser.phone ? formatPhoneDisplay(currentUser.phone) : '');
+    const wa = currentUser.whatsapp || '';
+    setWhatsapp(wa ? formatPhoneDisplay(wa) : '');
+    setSameAsPhone(!wa || normalizePhone(wa) === normalizePhone(currentUser.phone));
+    setTelegram(currentUser.telegram || '');
+    setBio(currentUser.bio && currentUser.bio !== 'Student on CampusCore' ? currentUser.bio : '');
+    setShowPhonePublicly(currentUser.showPhonePublicly ?? true);
+    setAvatarUrl(currentUser.avatarUrl || '');
+  }, [isOpen, currentUser?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && !saving && onClose();
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [isOpen, saving, onClose]);
 
   if (!isOpen || !currentUser) return null;
 
-  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAvatar = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    e.target.value = '';
     if (!file) return;
+    if (!file.type.startsWith('image/')) return error('Please choose an image file.');
+    if (file.size > 15 * 1024 * 1024) return error('That photo is too large (max 15MB).');
 
-    // Validate file
-    if (!file.type.startsWith('image/')) {
-      error('Please select a valid image file');
-      return;
-    }
-
-    if (file.size > 5 * 1024 * 1024) {
-      error('Image must be less than 5 MB');
-      return;
-    }
-
-    // Show preview
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      setAvatarPreview(e.target?.result as string);
-    };
-    reader.readAsDataURL(file);
-
-    // Upload to Supabase
-    setLoading(true);
-    const res = await uploadImageToSupabase(file, 'avatars');
-    setLoading(false);
-
-    if (res.error) {
-      error(`Failed to upload avatar: ${res.error}`);
-      setAvatarPreview(null);
-      return;
-    }
-
-    if (res.url) {
-      setAvatarUrl(res.url);
-      setAvatarPreview(null);
-      success('Avatar uploaded successfully');
+    setUploading(true);
+    try {
+      const blob = await compressImage(file, 512, 0.85); // small, fast avatar
+      if (isSupabaseConfigured()) {
+        const res = await uploadImageToSupabase(blob, 'avatars');
+        if (!res.url) return error(res.error || 'Photo upload failed. Please try again.');
+        setAvatarUrl(res.url);
+      } else {
+        const dataUrl: string = await new Promise((resolve, reject) => {
+          const r = new FileReader();
+          r.onload = () => resolve(r.result as string);
+          r.onerror = reject;
+          r.readAsDataURL(blob);
+        });
+        setAvatarUrl(dataUrl);
+      }
+    } finally {
+      setUploading(false);
     }
   };
 
-  const handleSaveProfile = async (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (saving || uploading) return;
 
-    if (!fullName.trim()) {
-      error('Full name is required');
-      return;
-    }
+    if (fullName.trim().length < 2) return error('Please enter your full name.');
+    const phoneTrim = phone.trim();
+    if (phoneTrim && !normalizePhone(phoneTrim)) return error('Enter a valid phone number, e.g. 0803 123 4567.');
+    if (isSeller && !phoneTrim) return error('Sellers need a phone number so buyers can reach them.');
+    const waTrim = sameAsPhone ? phoneTrim : whatsapp.trim();
+    if (waTrim && !normalizePhone(waTrim)) return error('Enter a valid WhatsApp number.');
 
-    if (!phone.trim()) {
-      error('Phone number is required');
-      return;
-    }
-
-    setLoading(true);
+    setSaving(true);
     const res = await updateProfile({
       fullName: fullName.trim(),
-      phone: phone.trim(),
-      whatsapp: whatsapp.trim() || phone.trim(),
+      phone: phoneTrim,
+      whatsapp: waTrim,
       telegram: telegram.trim(),
       bio: bio.trim(),
       avatarUrl,
+      showPhonePublicly,
     });
-    setLoading(false);
+    setSaving(false);
 
     if (res.success) {
-      success('Profile updated successfully!');
+      success('Profile updated!');
       onClose();
     } else {
-      error(res.message || 'Failed to update profile');
+      error(res.message || 'Could not save your profile. Please try again.');
     }
   };
 
+  const busy = saving || uploading;
+
   return (
-    <AnimatePresence>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs overflow-y-auto">
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95, y: 15 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.95, y: 15 }}
-          className="bg-white dark:bg-[#130b21] rounded-3xl max-w-2xl w-full p-6 sm:p-8 shadow-2xl border border-slate-200 dark:border-purple-950/70 relative my-8 text-slate-900 dark:text-slate-100"
-        >
-          <button
-            onClick={onClose}
-            className="absolute top-5 right-5 p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-full hover:bg-slate-100 dark:hover:bg-purple-950/50 transition-colors cursor-pointer"
-            aria-label="Close"
-          >
+    <div
+      className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center bg-slate-950/70 backdrop-blur-xs"
+      onMouseDown={(e) => e.target === e.currentTarget && !busy && onClose()}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Edit profile"
+    >
+      <form
+        onSubmit={handleSave}
+        className="bg-white dark:bg-[#130b21] w-full sm:max-w-lg max-h-[92vh] overflow-y-auto rounded-t-3xl sm:rounded-3xl shadow-2xl border border-slate-200 dark:border-purple-950/70 text-slate-900 dark:text-slate-100"
+        style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+      >
+        <div className="sticky top-0 z-10 flex items-center justify-between px-5 py-4 bg-white/95 dark:bg-[#130b21]/95 backdrop-blur border-b border-slate-100 dark:border-slate-800">
+          <h2 className="text-lg font-black">Edit Profile</h2>
+          <button type="button" onClick={onClose} disabled={busy} aria-label="Close" className="p-2 rounded-full text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800">
             <X className="w-5 h-5" />
           </button>
+        </div>
 
-          {/* Header */}
-          <div className="mb-6">
-            <h2 className="text-2xl font-black text-slate-900 dark:text-white">Edit Your Profile</h2>
-            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-              Update your profile information, photo, and contact details
-            </p>
+        <div className="p-5 space-y-5">
+          {/* Photo */}
+          <div className="flex items-center gap-4">
+            <button type="button" onClick={() => fileRef.current?.click()} disabled={busy} className="relative group shrink-0" aria-label="Change profile photo">
+              <img
+                src={avatarUrl || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=200&q=80'}
+                alt="Profile"
+                referrerPolicy="no-referrer"
+                className="w-20 h-20 rounded-full object-cover ring-4 ring-purple-500/20"
+              />
+              <span className="absolute inset-0 rounded-full bg-slate-950/45 flex items-center justify-center text-white">
+                {uploading ? <Loader2 className="w-6 h-6 animate-spin" /> : <Camera className="w-6 h-6" />}
+              </span>
+            </button>
+            <input ref={fileRef} type="file" accept="image/*" onChange={handleAvatar} className="hidden" />
+            <div className="min-w-0">
+              <p className="font-bold truncate">@{currentUser.username}</p>
+              <p className="text-xs text-slate-500 truncate">{currentUser.email}</p>
+              <button type="button" onClick={() => fileRef.current?.click()} disabled={busy} className="mt-1 text-xs font-bold text-purple-600 dark:text-purple-400">
+                {uploading ? 'Uploading…' : 'Change photo'}
+              </button>
+            </div>
           </div>
 
-          <form onSubmit={handleSaveProfile} className="space-y-6 max-h-[70vh] overflow-y-auto pr-2">
-            {/* Avatar Section */}
-            <div className="flex flex-col items-center gap-4">
-              <div className="relative">
-                <img
-                  src={avatarPreview || avatarUrl}
-                  alt={fullName}
-                  className="w-24 h-24 rounded-2xl object-cover border-4 border-indigo-600/30"
-                />
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={loading}
-                  className="absolute bottom-0 right-0 p-2 rounded-full bg-indigo-600 text-white hover:bg-indigo-700 shadow-lg transition-all disabled:opacity-50"
-                >
-                  <Camera className="w-4 h-4" />
-                </button>
-              </div>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                onChange={handleAvatarChange}
-                className="hidden"
-                disabled={loading}
-              />
-              <div className="text-center">
-                <p className="text-xs font-bold text-slate-600 dark:text-slate-300">Click the camera icon to change your photo</p>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400">JPG, PNG or WebP. Max 5MB</p>
-              </div>
-            </div>
+          <label className="block">
+            <span className="flex items-center gap-1.5 text-xs font-bold mb-1.5"><User className="w-3.5 h-3.5" /> Full name</span>
+            <input value={fullName} onChange={(e) => setFullName(e.target.value)} maxLength={80} autoComplete="name" className={inputCls} />
+          </label>
 
-            {/* Full Name */}
-            <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-2 flex items-center gap-1.5">
-                <User className="w-4 h-4" />
-                Full Name
+          <label className="block">
+            <span className="flex items-center gap-1.5 text-xs font-bold mb-1.5"><Phone className="w-3.5 h-3.5" /> Phone number {isSeller && <span className="text-rose-500">*</span>}</span>
+            <input value={phone} onChange={(e) => setPhone(e.target.value)} type="tel" inputMode="tel" autoComplete="tel" placeholder="0803 123 4567" className={inputCls} />
+            <span className="block text-[11px] text-slate-500 mt-1">Buyers and students use this to contact you.</span>
+          </label>
+
+          <div>
+            <label className="flex items-center gap-2 text-xs font-semibold mb-2 cursor-pointer">
+              <input type="checkbox" checked={sameAsPhone} onChange={(e) => setSameAsPhone(e.target.checked)} className="w-4 h-4 accent-purple-600" />
+              My WhatsApp number is the same as my phone number
+            </label>
+            {!sameAsPhone && (
+              <label className="block">
+                <span className="flex items-center gap-1.5 text-xs font-bold mb-1.5"><MessageCircle className="w-3.5 h-3.5" /> WhatsApp number</span>
+                <input value={whatsapp} onChange={(e) => setWhatsapp(e.target.value)} type="tel" inputMode="tel" placeholder="0803 123 4567" className={inputCls} />
               </label>
-              <input
-                type="text"
-                required
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                placeholder="Your full name"
-                className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-2xl text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              />
-            </div>
+            )}
+          </div>
 
-            {/* Email (Read-only) */}
-            <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-2 flex items-center gap-1.5">
-                <Mail className="w-4 h-4" />
-                Email Address
-              </label>
-              <input
-                type="email"
-                disabled
-                value={currentUser.email || ''}
-                className="w-full px-4 py-2.5 bg-slate-100 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-2xl text-sm text-slate-600 dark:text-slate-400 cursor-not-allowed"
-              />
-              <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1">Email cannot be changed</p>
-            </div>
+          <label className="block">
+            <span className="flex items-center gap-1.5 text-xs font-bold mb-1.5"><Send className="w-3.5 h-3.5" /> Telegram username (optional)</span>
+            <input value={telegram} onChange={(e) => setTelegram(e.target.value)} maxLength={40} placeholder="@yourname" autoCapitalize="none" className={inputCls} />
+          </label>
 
-            {/* Phone Number */}
-            <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-2 flex items-center gap-1.5">
-                <Phone className="w-4 h-4" />
-                Phone Number
-              </label>
-              <input
-                type="tel"
-                required
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder="08012345678"
-                className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-2xl text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              />
-              <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1">Required for contact & orders</p>
-            </div>
+          <label className="block">
+            <span className="text-xs font-bold mb-1.5 block">Bio</span>
+            <textarea value={bio} onChange={(e) => setBio(e.target.value)} maxLength={300} rows={3} placeholder="Tell students a little about you…" className={inputCls + ' resize-none'} />
+            <span className="block text-right text-[11px] text-slate-400">{bio.length}/300</span>
+          </label>
 
-            {/* WhatsApp */}
-            <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-2 flex items-center gap-1.5">
-                <MessageCircle className="w-4 h-4" />
-                WhatsApp Number
-              </label>
-              <input
-                type="tel"
-                value={whatsapp}
-                onChange={(e) => setWhatsapp(e.target.value)}
-                placeholder="08012345678 (optional)"
-                className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-2xl text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              />
-              <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1">Buyers will contact you here</p>
-            </div>
+          <label className="flex items-start gap-2.5 text-xs cursor-pointer">
+            <input type="checkbox" checked={showPhonePublicly} onChange={(e) => setShowPhonePublicly(e.target.checked)} className="w-4 h-4 mt-0.5 accent-purple-600" />
+            <span><b>Show my phone number on my profile</b><br /><span className="text-slate-500">Your number is still used on your own listings so buyers can reach you.</span></span>
+          </label>
+        </div>
 
-            {/* Telegram */}
-            <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-2 flex items-center gap-1.5">
-                <MessageCircle className="w-4 h-4" />
-                Telegram Handle
-              </label>
-              <input
-                type="text"
-                value={telegram}
-                onChange={(e) => setTelegram(e.target.value)}
-                placeholder="@yourusername (optional)"
-                className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-2xl text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              />
-            </div>
-
-            {/* Bio / About */}
-            <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-2 flex items-center gap-1.5">
-                <Briefcase className="w-4 h-4" />
-                About You / Bio
-              </label>
-              <textarea
-                value={bio}
-                onChange={(e) => setBio(e.target.value)}
-                placeholder="Tell buyers a bit about yourself (optional)"
-                maxLength={250}
-                rows={3}
-                className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-2xl text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
-              />
-              <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1">{bio.length}/250 characters</p>
-            </div>
-
-            {/* Read-only Info */}
-            <div className="grid grid-cols-2 gap-3 p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl">
-              <div>
-                <p className="text-[10px] font-bold text-slate-600 dark:text-slate-400">Campus</p>
-                <p className="text-sm font-bold text-slate-900 dark:text-white mt-0.5">{currentUser.campusName}</p>
-              </div>
-              <div>
-                <p className="text-[10px] font-bold text-slate-600 dark:text-slate-400">Department</p>
-                <p className="text-sm font-bold text-slate-900 dark:text-white mt-0.5">{currentUser.departmentName || 'Not set'}</p>
-              </div>
-              <div>
-                <p className="text-[10px] font-bold text-slate-600 dark:text-slate-400">Academic Level</p>
-                <p className="text-sm font-bold text-slate-900 dark:text-white mt-0.5">{currentUser.level}</p>
-              </div>
-              <div>
-                <p className="text-[10px] font-bold text-slate-600 dark:text-slate-400">Seller Status</p>
-                <p className="text-sm font-bold text-slate-900 dark:text-white mt-0.5">{currentUser.sellerStatus}</p>
-              </div>
-            </div>
-
-            {/* Action Buttons */}
-            <div className="flex gap-3 pt-4">
-              <button
-                type="button"
-                onClick={onClose}
-                className="flex-1 py-3 px-4 rounded-2xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-bold text-sm hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-all"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={loading}
-                className="flex-1 py-3 px-4 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm transition-all shadow-md shadow-indigo-600/20 active:scale-98 disabled:opacity-50 flex items-center justify-center gap-2"
-              >
-                <Save className="w-4 h-4" />
-                {loading ? 'Saving...' : 'Save Changes'}
-              </button>
-            </div>
-          </form>
-        </motion.div>
-      </div>
-    </AnimatePresence>
+        <div className="sticky bottom-0 flex gap-3 p-4 bg-white/95 dark:bg-[#130b21]/95 backdrop-blur border-t border-slate-100 dark:border-slate-800">
+          <button type="button" onClick={onClose} disabled={busy} className="px-5 py-3 rounded-xl font-bold text-sm bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200">
+            Cancel
+          </button>
+          <button type="submit" disabled={busy} className="flex-1 px-5 py-3 rounded-xl font-bold text-sm bg-purple-600 hover:bg-purple-500 text-white flex items-center justify-center gap-2 disabled:opacity-60">
+            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+            {saving ? 'Saving…' : 'Save changes'}
+          </button>
+        </div>
+      </form>
+    </div>
   );
 };

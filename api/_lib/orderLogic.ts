@@ -19,10 +19,14 @@ export function computeAmounts(priceNgn: number, feePercent: number) {
   return { amount: price, platformFee, sellerReceives: price - platformFee, totalAmount: price, totalKobo: price * 100 };
 }
 
-export function generateOrderNumber(now = new Date()): string {
+export function generateReference(prefix: 'ORD' | 'SRV', now = new Date()): string {
   const d = now.toISOString().slice(0, 10).replace(/-/g, '');
   const rand = crypto.randomBytes(5).toString('hex').toUpperCase();
-  return `CP-ORD-${d}-${rand}`; // also used as the Paystack reference (alnum + dashes only)
+  return `CP-${prefix}-${d}-${rand}`; // also used as the Paystack reference (alnum + dashes only)
+}
+
+export function generateOrderNumber(now = new Date()): string {
+  return generateReference('ORD', now);
 }
 
 export function verifyPaystackSignature(rawBody: string | Uint8Array, signature: string | undefined, secret: string): boolean {

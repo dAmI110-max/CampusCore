@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { StorageService } from '../../services/storageService';
+import { ContactNumberCard } from '../profile/ContactNumberCard';
 import { MarketService } from '../../services/marketService';
 import { compressImage } from '../../lib/imageUtils';
 import { uploadImageToSupabase } from '../../lib/supabase';
@@ -33,7 +34,7 @@ export const CreateAccommodationModal: React.FC<CreateAccommodationModalProps> =
   onClose,
   onSuccess,
 }) => {
-  const { currentUser } = useAuth();
+  const { currentUser, contactPhone, contactWhatsapp, hasContactNumber } = useAuth();
   const { success, error } = useToast();
 
   const campuses: Campus[] = StorageService.getCampuses('uni-uniosun');
@@ -118,15 +119,14 @@ export const CreateAccommodationModal: React.FC<CreateAccommodationModalProps> =
     }
     const priceNum = Number(price);
     if (!Number.isFinite(priceNum) || priceNum <= 0 || priceNum > 50_000_000) { error('Enter a valid rent amount.'); return; }
-    const phone = currentUser.phone || currentUser.whatsapp || '';
-    if (!phone) { error('Add a phone or WhatsApp number to your profile so students can contact you.'); return; }
+    if (!hasContactNumber) { error('Add your phone number above so students can contact you.'); return; }
 
     const payload = {
       ownerId: currentUser.id,
       ownerName: currentUser.fullName,
       ownerAvatar: currentUser.avatarUrl,
-      ownerPhone: phone,
-      ownerWhatsapp: (currentUser.whatsapp || phone).replace(/[^0-9]/g, ''),
+      ownerPhone: contactPhone,
+      ownerWhatsapp: contactWhatsapp,
       title: title.trim(),
       description: description.trim(),
       location: location.trim(),
@@ -370,6 +370,8 @@ export const CreateAccommodationModal: React.FC<CreateAccommodationModalProps> =
                 className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-hidden focus:border-emerald-500 resize-none"
               />
             </div>
+
+            <ContactNumberCard audience="Students" />
 
             <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-3">
               <button

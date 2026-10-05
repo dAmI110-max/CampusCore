@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { MarketService } from '../../services/marketService';
 import { StorageService } from '../../services/storageService';
 import { useToast } from '../../context/ToastContext';
 import { ServiceRequest } from '../../types';
@@ -40,8 +41,9 @@ export const ServiceDeliveryModal: React.FC<ServiceDeliveryModalProps> = ({
 
   const isProviderSubmitting = mode === 'submit_delivery';
 
-  const handleProviderSubmit = (e: React.FormEvent) => {
+  const handleProviderSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitting) return;
     if (!deliveryNotes.trim()) {
       toastError('Please describe the delivered work.');
       return;
@@ -50,7 +52,15 @@ export const ServiceDeliveryModal: React.FC<ServiceDeliveryModalProps> = ({
     setSubmitting(true);
     try {
       const urls = workUrl.trim() ? [workUrl.trim()] : [];
-      StorageService.submitServiceDelivery(request.id, deliveryNotes, urls);
+      if (MarketService.enabled) {
+        const res = await MarketService.serviceRequestAction(request.id, 'deliver', { deliveryNotes, deliveryUrls: urls });
+        if (!res.success) {
+          toastError(res.message || 'Failed to submit deliverables.');
+          return;
+        }
+      } else {
+        StorageService.submitServiceDelivery(request.id, deliveryNotes, urls);
+      }
       success('Work deliverables submitted to client for approval!');
       onSuccess();
       onClose();
@@ -61,15 +71,24 @@ export const ServiceDeliveryModal: React.FC<ServiceDeliveryModalProps> = ({
     }
   };
 
-  const handleClientApprove = () => {
+  const handleClientApprove = async () => {
+    if (submitting) return;
     setSubmitting(true);
     try {
-      const res = StorageService.approveServiceDelivery(request.id);
-      if (!res.success) {
-        toastError(res.error || 'Failed to approve delivery.');
-        return;
+      if (MarketService.enabled) {
+        const res = await MarketService.serviceRequestAction(request.id, 'approve');
+        if (!res.success) {
+          toastError(res.message || 'Failed to approve delivery.');
+          return;
+        }
+      } else {
+        const res = StorageService.approveServiceDelivery(request.id);
+        if (!res.success) {
+          toastError(res.error || 'Failed to approve delivery.');
+          return;
+        }
       }
-      success('Work approved! Escrow payment has been released to the service provider.');
+      success('Work approved! Payment has been released to the service provider.');
       onSuccess();
       onClose();
     } catch (err: any) {

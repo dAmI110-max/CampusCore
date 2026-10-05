@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { StorageService } from '../../services/storageService';
+import { ContactNumberCard } from '../profile/ContactNumberCard';
 import { MarketService } from '../../services/marketService';
 import { compressImage } from '../../lib/imageUtils';
 import { uploadImageToSupabase } from '../../lib/supabase';
@@ -39,7 +40,7 @@ export const CreateProductModal: React.FC<CreateProductModalProps> = ({
   onClose,
   onSuccess,
 }) => {
-  const { currentUser } = useAuth();
+  const { currentUser, contactPhone, contactWhatsapp, hasContactNumber } = useAuth();
   const { success, error } = useToast();
 
   const categories: Category[] = StorageService.getCategories();
@@ -114,8 +115,8 @@ export const CreateProductModal: React.FC<CreateProductModalProps> = ({
       error('Enter a valid price between ₦1 and ₦5,000,000.');
       return;
     }
-    if (!currentUser.phone && !currentUser.whatsapp) {
-      error('Add a phone or WhatsApp number to your profile so buyers can reach you.');
+    if (!hasContactNumber) {
+      error('Add your phone number above so buyers can reach you.');
       return;
     }
 
@@ -128,8 +129,8 @@ export const CreateProductModal: React.FC<CreateProductModalProps> = ({
       sellerName: currentUser.fullName,
       sellerAvatar: currentUser.avatarUrl,
       sellerCampus: selectedCampus?.name || currentUser.campusName || 'Osogbo Main Campus',
-      sellerPhone: currentUser.phone,
-      sellerWhatsapp: currentUser.whatsapp || currentUser.phone,
+      sellerPhone: contactPhone,
+      sellerWhatsapp: contactWhatsapp,
       categoryId,
       categoryName: selectedCategory?.name || 'General',
       title: title.trim(),
@@ -442,6 +443,8 @@ export const CreateProductModal: React.FC<CreateProductModalProps> = ({
                     className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800/90 border border-slate-300 dark:border-slate-700 rounded-xl text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 resize-none transition-colors"
                   />
                 </div>
+
+                <ContactNumberCard audience="Buyers" />
 
                 {/* Submit Action */}
                 <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between">
