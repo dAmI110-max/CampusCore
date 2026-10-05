@@ -1,5 +1,5 @@
 import { GoogleGenAI } from '@google/genai';
-import { verifyUser } from './_lib/verifyUser';
+import { verifyUser } from './_lib/verifyUser.js';
 
 // Reused across warm invocations of this function.
 let geminiClient: GoogleGenAI | null = null;

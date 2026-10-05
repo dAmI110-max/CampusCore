@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { paymentMatchesOrder } from './orderLogic';
+import { paymentMatchesOrder } from './orderLogic.js';
 
 export interface FinalizeResult {
   ok: boolean;

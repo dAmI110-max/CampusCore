@@ -1,7 +1,7 @@
-import { getAdminClient } from '../../_lib/supabaseAdmin';
-import { finalizePayment } from '../../_lib/finalizePayment';
-import { verifyPaystackSignature } from '../../_lib/orderLogic';
-import { readRawBody } from '../../_lib/http';
+import { getAdminClient } from '../../_lib/supabaseAdmin.js';
+import { finalizePayment } from '../../_lib/finalizePayment.js';
+import { verifyPaystackSignature } from '../../_lib/orderLogic.js';
+import { readRawBody } from '../../_lib/http.js';
 
 // Raw body is required to verify Paystack's HMAC signature.
 export const config = { api: { bodyParser: false } };

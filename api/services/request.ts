@@ -1,11 +1,11 @@
 import crypto from 'node:crypto';
-import { verifyUser } from '../_lib/verifyUser';
-import { getAdminClient, isAdminUser } from '../_lib/supabaseAdmin';
-import { rateLimit } from '../_lib/http';
-import { cleanText } from '../_lib/orderLogic';
+import { verifyUser } from '../_lib/verifyUser.js';
+import { getAdminClient, isAdminUser } from '../_lib/supabaseAdmin.js';
+import { rateLimit } from '../_lib/http.js';
+import { cleanText } from '../_lib/orderLogic.js';
 import {
   nextServiceState, validateNewRequest, validateQuote, validateDelivery, isUuid, ServiceAction,
-} from '../_lib/serviceLogic';
+} from '../_lib/serviceLogic.js';
 
 const ACTIONS: ServiceAction[] = ['quote', 'decline', 'deliver', 'approve', 'dispute', 'admin_refund', 'admin_release'];
 

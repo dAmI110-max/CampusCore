@@ -1,7 +1,7 @@
-import { verifyUser } from '../_lib/verifyUser';
-import { getAdminClient, isAdminUser } from '../_lib/supabaseAdmin';
-import { nextOrderState, cleanText, OrderAction } from '../_lib/orderLogic';
-import { rateLimit } from '../_lib/http';
+import { verifyUser } from '../_lib/verifyUser.js';
+import { getAdminClient, isAdminUser } from '../_lib/supabaseAdmin.js';
+import { nextOrderState, cleanText, OrderAction } from '../_lib/orderLogic.js';
+import { rateLimit } from '../_lib/http.js';
 
 const ACTIONS: OrderAction[] = ['mark_delivered', 'confirm_received', 'dispute', 'cancel_unpaid', 'admin_refund', 'admin_release'];
 

@@ -332,7 +332,11 @@ export class MarketService {
         ...init,
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${sess.access_token}`, ...(init.headers || {}) },
       });
-      const body = await res.json().catch(() => ({}));
+      let body = await res.json().catch(() => ({}));
+      if (!res.ok && !body?.error) {
+        // The server crashed or the route is missing (HTML/plain-text reply) – say so instead of a vague failure.
+        body = { error: `The server had a problem (error ${res.status}). Please try again in a minute.` };
+      }
       return { ok: res.ok, status: res.status, body };
     } catch {
       return { ok: false, status: 0, body: { error: 'Network problem. Check your connection and try again.' } };

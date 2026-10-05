@@ -1,7 +1,7 @@
-import { verifyUser } from '../../../_lib/verifyUser';
-import { getAdminClient } from '../../../_lib/supabaseAdmin';
-import { finalizePayment } from '../../../_lib/finalizePayment';
-import { rateLimit } from '../../../_lib/http';
+import { verifyUser } from '../../../_lib/verifyUser.js';
+import { getAdminClient } from '../../../_lib/supabaseAdmin.js';
+import { finalizePayment } from '../../../_lib/finalizePayment.js';
+import { rateLimit } from '../../../_lib/http.js';
 
 export default async function handler(req: any, res: any) {
   const user = await verifyUser(req);

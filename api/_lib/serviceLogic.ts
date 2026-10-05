@@ -1,5 +1,5 @@
 // Pure logic for service requests (quote → escrow → delivery → release). Unit-tested.
-import { cleanText } from './orderLogic';
+import { cleanText } from './orderLogic.js';
 
 export type ServiceReqStatus =
   | 'requested' | 'quoted' | 'in_progress' | 'ready_for_review' | 'completed'

@@ -1,7 +1,7 @@
-import { verifyUser } from '../../_lib/verifyUser';
-import { getAdminClient } from '../../_lib/supabaseAdmin';
-import { computeAmounts, generateOrderNumber, generateReference, sanitizeDelivery } from '../../_lib/orderLogic';
-import { rateLimit, getAppUrl } from '../../_lib/http';
+import { verifyUser } from '../../_lib/verifyUser.js';
+import { getAdminClient } from '../../_lib/supabaseAdmin.js';
+import { computeAmounts, generateOrderNumber, generateReference, sanitizeDelivery } from '../../_lib/orderLogic.js';
+import { rateLimit, getAppUrl } from '../../_lib/http.js';
 
 /**
  * POST { listingId, delivery: { campus, location, notes } }

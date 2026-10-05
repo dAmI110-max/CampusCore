@@ -54,3 +54,9 @@ Run `supabase/services_migration.sql` in the Supabase SQL editor (after `product
 - New UI: providers can **Send Quote / Decline**; both sides can **Report a problem**.
 - Fixed: the old flow charged a local "wallet" (impossible once wallet top-ups were disabled), and the bookings tab crashed on `totalAmount`.
 - Payouts to providers are manual for now (`payout_status = 'pending'` on `service_requests`).
+
+---
+## Payment "Could not start payment" fix
+Cause: `package.json` has `"type": "module"`, and the API files imported each other without file extensions. Vercel's ES-module runtime then crashed every payment/order/service function on load (error `ERR_MODULE_NOT_FOUND`). All 24 imports in `api/` now end in `.js` (also revives `/api/studygen`).
+Check readiness any time: open `https://YOUR-DOMAIN/api/health?check=payments` – every value should be `true` / `ok` / `accepted by Paystack`.
+The app now also shows "The server had a problem (error 500)" instead of a vague message when a server function fails.
